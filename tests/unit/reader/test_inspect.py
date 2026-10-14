@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pdfs
 import pytest
+
 from inkthread.reader.inspect import PdfEncrypted, PdfFacts, PdfUnreadable, inspect_pdf
 
 
