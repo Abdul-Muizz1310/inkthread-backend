@@ -1,0 +1,142 @@
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13"]
+build-backend = "uv_build"
+
+[project]
+name = "inkthread-backend"
+version = "0.1.0"
+description = "Turns a born-digital PDF into a knowledge graph of the document: every part, and the threads between them."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Abdul-Muizz Anwar", email = "abdulmuizz1310@outlook.com" }]
+dependencies = [
+    "alembic>=1.18.5",
+    "asyncpg>=0.31.0",
+    "boto3>=1.40.0",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "inkgrid>=0.1.0,<0.2",
+    "langgraph>=1.2.10",
+    "prometheus-fastapi-instrumentator>=8.1.0",
+    "pydantic>=2.12,<3",
+    "pydantic-settings>=2.14.2",
+    "python-multipart>=0.0.20",
+    "sqlalchemy[asyncio]>=2.0.49",
+    "sse-starlette>=3.3.4",
+    "structlog>=25.5.0",
+    "uvicorn[standard]>=0.44.0",
+]
+
+[project.scripts]
+inkthread = "inkthread.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Abdul-Muizz1310/inkthread-backend"
+Source = "https://github.com/Abdul-Muizz1310/inkthread-backend"
+
+[dependency-groups]
+test = [
+    "hypothesis>=6.168.1",
+    "networkx>=3.5",
+    "pyld>=2.0.4",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "respx>=0.23.1",
+    "testcontainers[postgres]>=4.15.0",
+]
+lint = ["ruff>=0.16.9"]
+typecheck = ["mypy>=2.3.1", "boto3-stubs[s3]>=1.40.0"]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "typecheck" },
+]
+
+[tool.uv]
+required-version = ">=0.12.19,<0.13"
+default-groups = ["dev"]
+
+[tool.uv.build-backend]
+module-name = "inkthread"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.format]
+exclude = ["*.md"]
+
+[tool.ruff.lint]
+extend-select = [
+    "E", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RET", "PIE", "PERF", "RUF", "PT",
+    "PTH", "S", "ARG", "T20", "TRY", "PL", "TID", "FBT", "ANN401",
+]
+ignore = ["COM812", "PLR0913", "TRY003", "PLR2004", "PLR0911", "PLR0912"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ARG", "FBT", "PLC0415", "S105", "S106", "S603", "S607", "N802", "ANN401", "SLF001"]
+"alembic/**" = ["INP001"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+enable_error_code = [
+    "ignore-without-code",
+    "redundant-expr",
+    "truthy-bool",
+    "possibly-undefined",
+    "deprecated",
+    "exhaustive-match",
+    "unused-awaitable",
+]
+
+[[tool.mypy.overrides]]
+module = ["inkgrid.*", "pymupdf.*", "pypdfium2.*", "camelot.*"]
+follow_untyped_imports = true
+
+[tool.pytest]
+minversion = "9.0"
+strict = true
+testpaths = ["tests"]
+pythonpath = ["tests/support"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: needs Docker (Postgres via Testcontainers) or a real reader child process",
+    "smoke: probes a deployed service named by SMOKE_BASE_URL",
+]
+addopts = [
+    "-ra",
+    "--import-mode=importlib",
+]
+filterwarnings = [
+    "error",
+    "ignore:builtin type (SwigPy|swigvarlink):DeprecationWarning",
+    "ignore:'typing.ByteString' and 'collections.abc.ByteString' are deprecated:DeprecationWarning",
+    # testcontainers' own wait helpers are deprecated upstream; not ours to fix.
+    "ignore::DeprecationWarning:testcontainers.*",
+]
+
+[tool.coverage.run]
+branch = true
+source_pkgs = ["inkthread"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "@(typing\\.)?overload",
+    "assert_never\\(",
+    "raise NotImplementedError",
+]
