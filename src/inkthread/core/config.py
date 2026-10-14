@@ -31,6 +31,7 @@ class BlobStoreKind(StrEnum):
 
     LOCAL = "local"
     R2 = "r2"
+    POSTGRES = "postgres"
 
 
 class Settings(BaseSettings):
@@ -59,6 +60,7 @@ class Settings(BaseSettings):
     r2_bucket: str | None = None
     r2_endpoint: str | None = None
     r2_prefix: str = "inkthread/"
+    blob_budget_mb: int = Field(default=300, gt=0)
 
     openrouter_api_key: SecretStr | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"

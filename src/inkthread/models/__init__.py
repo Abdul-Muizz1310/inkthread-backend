@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     func,
@@ -147,4 +148,16 @@ class LlmResponse(Base):
     task: Mapped[str] = mapped_column(String(32))
     served_model: Mapped[str] = mapped_column(Text)
     response: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    created_at: Mapped[dt.datetime] = mapped_column(TS, default=_now, server_default=func.now())
+
+
+class BlobRow(Base):
+    """A blob kept in Postgres when no object store is configured."""
+
+    __tablename__ = "blobs"
+
+    key: Mapped[str] = mapped_column(Text, primary_key=True)
+    content_type: Mapped[str] = mapped_column(String(64))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    size: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[dt.datetime] = mapped_column(TS, default=_now, server_default=func.now())

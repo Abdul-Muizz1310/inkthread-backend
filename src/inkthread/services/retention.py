@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import datetime as dt
+import uuid
+from collections.abc import Awaitable, Callable
 
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -28,24 +30,41 @@ class RetentionSweeper:
         blobs: BlobStore,
         *,
         interval_s: float = SWEEP_EVERY_S,
+        blob_budget_bytes: int | None = None,
+        usage: Callable[[], Awaitable[int]] | None = None,
     ) -> None:
         self._sessions = sessions
         self._blobs = blobs
         self._interval = interval_s
+        self._budget = blob_budget_bytes
+        self._usage = usage
         self._task: asyncio.Task[None] | None = None
 
+    async def _drop(self, doc_id: uuid.UUID, sha: str) -> None:
+        async with self._sessions() as s, s.begin():
+            await documents.delete(s, doc_id)
+        await self._blobs.delete_prefix(pdf_key(sha))
+        await self._blobs.delete_prefix(pages_prefix(sha))
+
     async def sweep(self, now: dt.datetime) -> int:
-        """Delete every upload that expired before `now`; returns how many."""
+        """Delete every upload that expired before `now`, then the oldest uploads while the blob
+        budget is exceeded (samples are never evicted); returns how many were deleted."""
         async with self._sessions() as s:
             expired = [(d.id, d.sha256) for d in await documents.expired_uploads(s, now)]
         for doc_id, sha in expired:
-            async with self._sessions() as s, s.begin():
-                await documents.delete(s, doc_id)
-            await self._blobs.delete_prefix(pdf_key(sha))
-            await self._blobs.delete_prefix(pages_prefix(sha))
-        if expired:
-            _log.info("retention_swept", deleted=len(expired))
-        return len(expired)
+            await self._drop(doc_id, sha)
+        deleted = len(expired)
+        if self._budget is not None and self._usage is not None:
+            async with self._sessions() as s:
+                oldest = [(d.id, d.sha256) for d in await documents.uploads_oldest_first(s)]
+            for doc_id, sha in oldest:
+                if await self._usage() <= self._budget:
+                    break
+                await self._drop(doc_id, sha)
+                deleted += 1
+        if deleted:
+            _log.info("retention_swept", deleted=deleted)
+        return deleted
 
     async def start(self) -> None:
         """Sweep now, then hourly."""

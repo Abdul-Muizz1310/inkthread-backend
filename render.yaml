@@ -16,7 +16,9 @@ services:
       - key: CORS_ORIGINS
         sync: false
       - key: BLOB_STORE
-        value: r2
+        value: postgres   # r2 once the R2 credentials are replaced
+      - key: BLOB_BUDGET_MB
+        value: "300"
       - key: R2_ACCOUNT_ID
         sync: false
       - key: R2_ACCESS_KEY_ID

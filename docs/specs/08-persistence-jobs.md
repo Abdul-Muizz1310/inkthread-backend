@@ -21,7 +21,11 @@ The engine uses `pool_pre_ping=True` and `pool_recycle=300`, and normalises Neon
 
 `BlobStore` port: `put(key, data, content_type)`, `get(key) → bytes | None`, `delete_prefix(prefix)`.
 Adapters: `LocalBlobStore(root)` for development and tests, `R2BlobStore` (S3 API via boto3 in a
-worker thread, under `R2_PREFIX`) in production. Keys are content-addressed by the PDF's sha256:
+worker thread, under `R2_PREFIX`), and `PgBlobStore` (rows of a `blobs` table, migration `0002`).
+Production runs on `PgBlobStore` since 2026-10-14, when the portfolio's R2 credentials answered
+`Unauthorized`; R2 returns by setting `BLOB_STORE=r2` once they are replaced. Under `PgBlobStore`
+the retention sweep also enforces `BLOB_BUDGET_MB` (300): past it, the oldest uploads go first, and
+samples are never evicted (Neon's free branch holds 0.5 GB). Keys are content-addressed by the PDF's sha256:
 
 | key | what |
 |---|---|

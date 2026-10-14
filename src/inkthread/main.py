@@ -39,6 +39,7 @@ from inkthread.services.runner import JobRunner
 from inkthread.services.streams import StreamService
 from inkthread.storage.blobs import BlobStore
 from inkthread.storage.factory import make_blob_store
+from inkthread.storage.pgblobs import PgBlobStore
 
 PING_INTERVAL_S = 15.0
 STREAM_MAX_S = 600.0
@@ -99,7 +100,7 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         engine = make_engine(cfg.database_url)
         sessions = make_sessions(engine)
-        store = blobs or make_blob_store(cfg)
+        store = blobs or make_blob_store(cfg, sessions)
         http = httpx.AsyncClient()
         key = cfg.openrouter_api_key
 
@@ -154,7 +155,12 @@ def create_app(
             documents=DocumentService(sessions, store, wake=runner.wake),
             streams=StreamService(sessions, broadcast),
             runner=runner,
-            retention=RetentionSweeper(sessions, store),
+            retention=RetentionSweeper(
+                sessions,
+                store,
+                blob_budget_bytes=cfg.blob_budget_mb * 1024 * 1024,
+                usage=store.total_bytes if isinstance(store, PgBlobStore) else None,
+            ),
         )
         app.state.engine = engine
         app.state.services = services

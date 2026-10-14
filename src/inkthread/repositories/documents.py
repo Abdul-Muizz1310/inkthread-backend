@@ -88,6 +88,14 @@ async def expired_uploads(s: AsyncSession, now: dt.datetime) -> list[Document]:
     return list(rows.scalars())
 
 
+async def uploads_oldest_first(s: AsyncSession) -> list[Document]:
+    """Uploads (never samples), oldest first: the blob budget's eviction order."""
+    rows = await s.execute(
+        select(Document).where(Document.kind == "upload").order_by(Document.created_at, Document.id)
+    )
+    return list(rows.scalars())
+
+
 async def delete(s: AsyncSession, document_id: uuid.UUID) -> None:
     """Delete a document; its jobs, events and graph cascade."""
     await s.execute(sa_delete(Document).where(Document.id == document_id))
