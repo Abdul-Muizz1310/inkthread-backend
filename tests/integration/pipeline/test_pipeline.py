@@ -67,7 +67,8 @@ async def test_stages_run_in_order_and_the_graph_is_valid() -> None:
 async def test_replay_is_byte_identical() -> None:  # G7 (spec 08 T-PJ-13, rules-only half)
     _, a = await run(pdfs.footnoted(), deps(LlmMode.OFF))
     _, b = await run(pdfs.footnoted(), deps(LlmMode.OFF))
-    assert isinstance(a, PipelineResult) and isinstance(b, PipelineResult)
+    assert isinstance(a, PipelineResult)
+    assert isinstance(b, PipelineResult)
     assert a.final.graph.provenance.graph_hash == b.final.graph.provenance.graph_hash
     assert a.final.graph.model_dump_json() == b.final.graph.model_dump_json()
 

@@ -7,6 +7,7 @@ runner persists what they stream.
 
 from __future__ import annotations
 
+import itertools
 import operator
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
@@ -198,7 +199,7 @@ def build_pipeline(deps: PipelineDeps) -> Any:  # noqa: ANN401, PLR0915 - LangGr
         return {"stages": [_stage("classify_rules", "completed", _ms(start))]}
 
     async def agent_stage(
-        name: str, run: Callable[[], Awaitable[AgentReport]], draft: GraphDraft, empty: bool
+        name: str, run: Callable[[], Awaitable[AgentReport]], draft: GraphDraft, *, empty: bool
     ) -> dict[str, Any]:
         start = time.perf_counter()
         _stage(name, "started")
@@ -294,7 +295,7 @@ def build_pipeline(deps: PipelineDeps) -> Any:  # noqa: ANN401, PLR0915 - LangGr
         "verify_agent",
         "finalize",
     ]
-    for a, b in zip(chain, chain[1:], strict=False):
+    for a, b in itertools.pairwise(chain):
         builder.add_edge(a, b)
     builder.add_edge("finalize", END)
     return builder.compile()
