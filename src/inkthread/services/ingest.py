@@ -43,7 +43,7 @@ def pdf_key(sha256: str) -> str:
     return f"pdf/{sha256}.pdf"
 
 
-async def check_pdf(data: bytes, max_pages: int) -> int:
+async def check_pdf(data: bytes, max_pages: int | None) -> int:
     """The page count of an acceptable PDF; raise the matching domain error otherwise."""
     if not data:
         raise EmptyFile
@@ -55,7 +55,7 @@ async def check_pdf(data: bytes, max_pages: int) -> int:
         raise PdfEncrypted from None
     except pdf_inspect.PdfUnreadable:
         raise PdfUnreadable from None
-    if facts.pages > max_pages:
+    if max_pages is not None and facts.pages > max_pages:
         raise TooManyPages(
             f"The PDF has {facts.pages} pages; the limit is {max_pages}.",
             detail={"pages": facts.pages, "max_pages": max_pages},
@@ -83,7 +83,8 @@ class IngestService:
         self, data: bytes, file_name: str | None, *, kind: DocumentKind = "upload"
     ) -> UploadOut:
         """Validate and enqueue. Same bytes while queued, running or ready: deduplicated."""
-        pages = await check_pdf(data, self._limits.max_pages)
+        # Samples are processed ahead of time, so the live-upload page cap does not apply.
+        pages = await check_pdf(data, None if kind == "sample" else self._limits.max_pages)
         sha = hashlib.sha256(data).hexdigest()
         for attempt in range(2):
             try:

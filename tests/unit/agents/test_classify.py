@@ -7,7 +7,7 @@ import json
 from agent_drafts import deps, draft, ids, rule_role
 from fake_llm import CountingBudget, MemoryCallLog, MemoryStore, Reply, ScriptedModel, unavailable
 
-from inkthread.agents.classify import classify_agent
+from inkthread.agents.classify import BATCH, classify_agent
 from inkthread.core.config import LlmMode
 from inkthread.domain.draft import GraphDraft
 from inkthread.domain.model import Actor, Basis, FlagCode, NodeKind, Role, Span
@@ -147,13 +147,13 @@ async def test_all_empty_quotes_rejected() -> None:  # plan § Review focus 5
     assert all(not n.roles for n in d.nodes.values())
 
 
-async def test_batches_of_twenty_at_most_three() -> None:
+async def test_batches_are_capped_at_most_three() -> None:
     text = "A part long enough to be residual, number {:03d}, with some words."
     parts = [(f"p:{i}", NodeKind.PARAGRAPH, text.format(i)) for i in range(1, 71)]
     d = draft(*parts)
     model = ScriptedModel([answer(), answer(), answer()])
     report = await classify_agent(d, ids(70), deps(model))
-    assert [len(payload(r)["parts"]) for r in model.requests] == [20, 20, 20]
+    assert [len(payload(r)["parts"]) for r in model.requests] == [BATCH, BATCH, BATCH]
     assert report.calls == 3
 
 
@@ -164,19 +164,19 @@ async def test_budget_runs_out_mid_stage() -> None:  # T-AG-11
     report = await classify_agent(d, ids(40), deps(model))
     assert report.skipped_reason == "budget"
     flagged = [n.id for n in d.nodes.values() if n.has_flag(FlagCode.MODEL_UNAVAILABLE)]
-    assert flagged == list(ids(40))[20:]
+    assert flagged == list(ids(40))[BATCH : 3 * BATCH]
     op = next(o for o in d.ops if o.kind == "add_flag")
     assert (op.actor, op.method) == ("rule", "R-INK-flags")
 
 
 async def test_unavailable_batch_flags_its_parts_and_moves_on() -> None:
     text = "A part long enough to be residual, number {:03d}, with some words."
-    d = draft(*[(f"p:{i}", NodeKind.PARAGRAPH, text.format(i)) for i in range(1, 22)])
+    d = draft(*[(f"p:{i}", NodeKind.PARAGRAPH, text.format(i)) for i in range(1, BATCH + 2)])
     log = MemoryCallLog()
     model = ScriptedModel([unavailable(), answer()])
-    report = await classify_agent(d, ids(21), deps(model, log=log))
+    report = await classify_agent(d, ids(BATCH + 1), deps(model, log=log))
     flagged = [n.id for n in d.nodes.values() if n.has_flag(FlagCode.MODEL_UNAVAILABLE)]
-    assert flagged == list(ids(20))
+    assert flagged == list(ids(BATCH))
     assert report.calls == 2
     assert len(log.entries) == 2
 

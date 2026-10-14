@@ -1,0 +1,45 @@
+# Render blueprint: one free Docker web service. Migrations run from the
+# container entrypoint (the free plan ignores preDeployCommand).
+services:
+  - type: web
+    name: inkthread-backend
+    runtime: docker
+    plan: free
+    region: virginia
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: BLOB_STORE
+        value: r2
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_PREFIX
+        value: inkthread/
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_SITE_URL
+        sync: false
+      - key: LLM_MODE
+        value: live
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: METRICS_TOKEN
+        sync: false
+      - key: MAX_PAGES
+        value: "30"
+      - key: READ_MEMORY_LIMIT_MB
+        value: "0"

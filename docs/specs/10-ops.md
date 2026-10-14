@@ -28,7 +28,7 @@ once at startup and validated there, so a bad configuration fails the boot, not 
 | `LLM_MAX_REQUESTS_PER_DOCUMENT` | `8` | |
 | `LLM_DAILY_REQUEST_CAP` | `40` | |
 | `LLM_ACCOUNT_RESERVE` | `10` | |
-| `LLM_MAX_TOKENS` | `6000` | |
+| `LLM_MAX_TOKENS` | `12000` | |
 | `LLM_TIMEOUT_S` | `90` | per attempt |
 | `MAX_UPLOAD_BYTES` | `15728640` | |
 | `MAX_PAGES` | `40` | |

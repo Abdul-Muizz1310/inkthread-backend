@@ -1,0 +1,62 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - name: Unit tests with branch coverage
+        run: uv run pytest -m "not integration and not smoke" --cov --cov-branch --cov-report=term-missing:skip-covered --cov-fail-under=80
+
+  integration:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - name: Postgres (Testcontainers), the reader child process and the composed flow
+        run: uv run pytest -m integration
+
+  build:
+    needs: [test, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build --build-arg COMMIT_SHA=${{ github.sha }} -t inkthread-backend:${{ github.sha }} .
+
+  smoke:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - name: Post-deploy smoke (skips when SMOKE_BASE_URL is unset)
+        env:
+          SMOKE_BASE_URL: ${{ vars.SMOKE_BASE_URL }}
+        run: uv run python -m scripts.smoke_health

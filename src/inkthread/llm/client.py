@@ -93,7 +93,7 @@ class OpenRouterModel:
         http: httpx.AsyncClient,
         catalog: ModelCatalog,
         budget: BudgetPort,
-        max_tokens: int = 6000,
+        max_tokens: int = 12000,
         timeout_s: float = 90.0,
         deadline_s: float = DEADLINE_S,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,

@@ -25,7 +25,7 @@ class AgentDeps:
     producer_cascade: tuple[str, ...]
     verifier_cascade: tuple[str, ...]
     temperature: float | None = None
-    max_tokens: int = 6000
+    max_tokens: int = 12000
 
     def __post_init__(self) -> None:
         if not self.producer_cascade or not self.verifier_cascade:

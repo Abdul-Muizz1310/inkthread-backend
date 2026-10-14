@@ -1,0 +1,13 @@
+# Public-domain US government documents (17 U.S.C. § 105) used as inkthread's samples.
+
+[[sample]]
+file = "uspto-fee-schedule.pdf"
+title = "USPTO fee schedule"
+source = "https://www.uspto.gov/sites/default/files/documents/USPTO-fee-schedule_current.pdf"
+sha256 = "31a66e827c4549e500a5d3b0f1e757ec04fc72f2d04e14475ad279cdb546cb6f"
+
+[[sample]]
+file = "nist-ai-100-1.pdf"
+title = "NIST AI Risk Management Framework (AI RMF 1.0)"
+source = "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf"
+sha256 = "7576edb531d9848825814ee88e28b1795d3a84b435b4b797d3670eafdc4a89f1"

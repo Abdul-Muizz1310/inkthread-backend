@@ -37,7 +37,7 @@ stored answer can never smuggle in an unchecked claim.
 
 ### A-classify (producer, v1)
 
-- **Input:** up to 20 residual parts (spec 03 § 4) per batch, at most 3 batches. Each part is
+- **Input:** up to 12 residual parts (spec 03 § 4) per batch, at most 3 batches. Each part is
   `{id: "n<k>", kind, section, text}`, where `id` is a short local alias, `section` is the section
   title, and `text` is the node text with hidden spans removed, cut to 1,200 characters (flag
   `truncated_for_model` when cut). The prompt lists the roles with their one-line definitions
@@ -120,7 +120,7 @@ verifier uses `[OPENROUTER_MODEL_FAST, OPENROUTER_MODEL_FALLBACK]`. Configuratio
 `PRIMARY == FAST`.
 
 **Request.** `POST {OPENROUTER_BASE_URL}/chat/completions` with:
-- `model`, `messages`, `temperature` and `max_tokens` (default 6,000);
+- `model`, `messages`, `temperature` and `max_tokens` (default 12,000; reasoning models spend most of it thinking);
 - `reasoning: {effort: "low"}`;
 - a `response_format` chosen per model from OpenRouter's catalogue (`GET /models`: no key, no request
   cost, cached for 24 h):

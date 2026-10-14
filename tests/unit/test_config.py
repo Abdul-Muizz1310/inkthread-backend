@@ -25,7 +25,7 @@ def test_defaults_match_the_spec() -> None:
     assert s.llm_max_requests_per_document == 8
     assert s.llm_daily_request_cap == 40
     assert s.llm_account_reserve == 10
-    assert s.llm_max_tokens == 6000
+    assert s.llm_max_tokens == 12000
     assert s.max_upload_bytes == 15 * 1024 * 1024
     assert s.max_pages == 40
     assert s.max_queue == 10

@@ -1,0 +1,74 @@
+[
+ {
+  "request_key": "857030cef481a2acaea403f1b7ade12eb4acdd551687f4394c6c401345c0fcf8",
+  "response": {
+   "labels": [
+    {
+     "evidence": [],
+     "part": "n1",
+     "roles": []
+    }
+   ]
+  },
+  "served_model": "nvidia/nemotron-3-super-120b-a12b:free",
+  "task": "classify"
+ },
+ {
+  "request_key": "879abde80b47df1e64f196ffb1ec6714c0c68cb52b14c7da4b90aabea5e576ab",
+  "response": {
+   "verdicts": [
+    {
+     "claim": "k1",
+     "verdict": "supported"
+    },
+    {
+     "claim": "k2",
+     "verdict": "supported"
+    },
+    {
+     "claim": "k3",
+     "verdict": "supported"
+    },
+    {
+     "claim": "k4",
+     "verdict": "supported"
+    }
+   ]
+  },
+  "served_model": "google/gemma-4-31b-it:free",
+  "task": "verify"
+ },
+ {
+  "request_key": "f97c579206cba2fdaa952bc606f422432cbbd4933ee60bc485b512b2da7077af",
+  "response": {
+   "relations": [
+    {
+     "evidence": "Effective January 19, 2025 (Last Revised August 14, 2026)",
+     "focus": "c1",
+     "target": "c2",
+     "type": "qualifies"
+    },
+    {
+     "evidence": "The fees subject to reduction upon establishment of small entity status (37 CFR 1.27) or micro entity status (37 CFR 1.29) are shown in separate columns.",
+     "focus": "c5",
+     "target": "c6",
+     "type": "governs"
+    },
+    {
+     "evidence": "For international design applications having an international registration date on or after January 19, 2025.",
+     "focus": "c8",
+     "target": "c14",
+     "type": "qualifies"
+    },
+    {
+     "evidence": "As of the implementation of mandatory electronic filing on February 15, 2020, paper trademark filings are no longer accepted.",
+     "focus": "c15",
+     "target": "c16",
+     "type": "qualifies"
+    }
+   ]
+  },
+  "served_model": "nvidia/nemotron-3-super-120b-a12b:free",
+  "task": "relate"
+ }
+]

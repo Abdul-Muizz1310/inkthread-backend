@@ -24,7 +24,7 @@ from inkthread.domain.model import Actor, Basis, NodeKind, RejectedClaim, Role
 
 STAGE = "classify_agent"
 TASK_ID = "A-classify"
-BATCH = 20
+BATCH = 12  # 20 overflowed nemotron-3-super's output on NIST AI 100-1 (2026-10-14)
 MAX_BATCHES = 3
 TEXT_LIMIT = 1200
 CLASSIFIABLE = frozenset(
