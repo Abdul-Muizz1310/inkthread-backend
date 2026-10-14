@@ -80,6 +80,8 @@ ignore = ["COM812", "PLR0913", "TRY003", "PLR2004", "PLR0911", "PLR0912"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "PLR0917", "ARG", "FBT", "PLC0415", "S105", "S106", "S603", "S607", "N802", "ANN401", "SLF001"]
 "alembic/**" = ["INP001"]
+# Domain errors are named after their spec 07 codes (`NotFound`, `QueueFull`), not `*Error`.
+"src/inkthread/core/errors.py" = ["N818"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
