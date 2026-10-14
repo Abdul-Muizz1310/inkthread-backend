@@ -1,0 +1,1319 @@
+{
+  "$defs": {
+    "Actor": {
+      "description": "What made an element.",
+      "enum": [
+        "inkgrid",
+        "rule",
+        "agent",
+        "verifier"
+      ],
+      "title": "Actor",
+      "type": "string"
+    },
+    "Anchor": {
+      "additionalProperties": false,
+      "description": "The table cell an edge's evidence sits in.",
+      "properties": {
+        "col": {
+          "minimum": 0,
+          "title": "Col",
+          "type": "integer"
+        },
+        "row": {
+          "minimum": 0,
+          "title": "Row",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "row",
+        "col"
+      ],
+      "title": "Anchor",
+      "type": "object"
+    },
+    "Basis": {
+      "description": "Who stands behind an element: the text in so many words, or a model's reading of it.",
+      "enum": [
+        "explicit",
+        "semantic"
+      ],
+      "title": "Basis",
+      "type": "string"
+    },
+    "CellInfo": {
+      "additionalProperties": false,
+      "description": "One table cell with its verbatim header path and row labels (spec 02 \u00a7 6).",
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "carried": {
+          "default": false,
+          "title": "Carried",
+          "type": "boolean"
+        },
+        "col": {
+          "minimum": 0,
+          "title": "Col",
+          "type": "integer"
+        },
+        "col_span": {
+          "minimum": 1,
+          "title": "Col Span",
+          "type": "integer"
+        },
+        "header_path": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Header Path",
+          "type": "array"
+        },
+        "is_header": {
+          "title": "Is Header",
+          "type": "boolean"
+        },
+        "markers": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Markers",
+          "type": "array"
+        },
+        "page": {
+          "minimum": 1,
+          "title": "Page",
+          "type": "integer"
+        },
+        "row": {
+          "minimum": 0,
+          "title": "Row",
+          "type": "integer"
+        },
+        "row_labels": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Row Labels",
+          "type": "array"
+        },
+        "row_span": {
+          "minimum": 1,
+          "title": "Row Span",
+          "type": "integer"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row",
+        "col",
+        "row_span",
+        "col_span",
+        "text",
+        "is_header",
+        "page"
+      ],
+      "title": "CellInfo",
+      "type": "object"
+    },
+    "Confidence": {
+      "additionalProperties": false,
+      "description": "Tier (decisive), score (for sorting) and the reasons behind both.",
+      "properties": {
+        "reasons": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Reason"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "score": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Score",
+          "type": "number"
+        },
+        "tier": {
+          "$ref": "#/$defs/Tier"
+        }
+      },
+      "required": [
+        "tier",
+        "score"
+      ],
+      "title": "Confidence",
+      "type": "object"
+    },
+    "DocumentInfo": {
+      "additionalProperties": false,
+      "description": "What was read.",
+      "properties": {
+        "file_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "File Name"
+        },
+        "page_count": {
+          "minimum": 1,
+          "title": "Page Count",
+          "type": "integer"
+        },
+        "pages": {
+          "items": {
+            "$ref": "#/$defs/PageSize"
+          },
+          "title": "Pages",
+          "type": "array"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title"
+        },
+        "title_node": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Title Node"
+        }
+      },
+      "required": [
+        "sha256",
+        "file_name",
+        "title",
+        "title_node",
+        "page_count",
+        "pages"
+      ],
+      "title": "DocumentInfo",
+      "type": "object"
+    },
+    "Edge": {
+      "additionalProperties": false,
+      "description": "A typed, directed relationship between two nodes.",
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Anchor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "basis": {
+          "$ref": "#/$defs/Basis"
+        },
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Span"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence_on": {
+          "$ref": "#/$defs/EvidenceSide",
+          "default": "source"
+        },
+        "family": {
+          "$ref": "#/$defs/EdgeFamily"
+        },
+        "flags": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Flag"
+          },
+          "title": "Flags",
+          "type": "array"
+        },
+        "id": {
+          "minLength": 3,
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "made_by": {
+          "$ref": "#/$defs/Maker"
+        },
+        "method": {
+          "minLength": 1,
+          "title": "Method",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/EdgeType"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Verdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "family",
+        "source",
+        "target",
+        "basis",
+        "method",
+        "made_by",
+        "confidence"
+      ],
+      "title": "Edge",
+      "type": "object"
+    },
+    "EdgeFamily": {
+      "description": "Legend groups; edges are coloured by family.",
+      "enum": [
+        "structure",
+        "notes",
+        "terms",
+        "references",
+        "logic"
+      ],
+      "title": "EdgeFamily",
+      "type": "string"
+    },
+    "EdgeType": {
+      "description": "How one part depends on another. Declaration order is the graph's edge order.",
+      "enum": [
+        "contains",
+        "continues",
+        "cites_note",
+        "defines",
+        "uses_term",
+        "refers_to",
+        "cites_external",
+        "governs",
+        "qualifies",
+        "overrides",
+        "illustrates"
+      ],
+      "title": "EdgeType",
+      "type": "string"
+    },
+    "EvidenceSide": {
+      "description": "Which node's text an edge's evidence sits in.",
+      "enum": [
+        "source",
+        "target"
+      ],
+      "title": "EvidenceSide",
+      "type": "string"
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "description": "A document-level finding: inkgrid's, or the pipeline's.",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "severity": {
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "severity"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "Flag": {
+      "additionalProperties": false,
+      "description": "A mark on an element.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/FlagCode"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "Flag",
+      "type": "object"
+    },
+    "FlagCode": {
+      "description": "Marks of what is missing or doubtful. Nothing is withheld; it is flagged.",
+      "enum": [
+        "hidden_text",
+        "text_defect",
+        "header_not_found",
+        "note_not_found",
+        "reference_unresolved",
+        "multiple_definitions",
+        "merged_heading",
+        "contested",
+        "model_unavailable",
+        "truncated_for_model"
+      ],
+      "title": "FlagCode",
+      "type": "string"
+    },
+    "GraphStats": {
+      "additionalProperties": false,
+      "description": "Counts derived from the content only.",
+      "properties": {
+        "edges_by_type": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Edges By Type",
+          "type": "object"
+        },
+        "nodes_by_kind": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Nodes By Kind",
+          "type": "object"
+        },
+        "roles": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Roles",
+          "type": "object"
+        },
+        "tiers": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Tiers",
+          "type": "object"
+        }
+      },
+      "required": [
+        "nodes_by_kind",
+        "edges_by_type",
+        "roles",
+        "tiers"
+      ],
+      "title": "GraphStats",
+      "type": "object"
+    },
+    "Maker": {
+      "additionalProperties": false,
+      "description": "What made an element: inkgrid, a rule (by id) or a model (task id, slug, request key).",
+      "properties": {
+        "actor": {
+          "$ref": "#/$defs/Actor"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "request_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Key"
+        }
+      },
+      "required": [
+        "actor",
+        "id"
+      ],
+      "title": "Maker",
+      "type": "object"
+    },
+    "Node": {
+      "additionalProperties": false,
+      "description": "One part, section, term or outside source of the document.",
+      "properties": {
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "depth": {
+          "minimum": 0,
+          "title": "Depth",
+          "type": "integer"
+        },
+        "flags": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Flag"
+          },
+          "title": "Flags",
+          "type": "array"
+        },
+        "hidden_spans": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Span"
+          },
+          "title": "Hidden Spans",
+          "type": "array"
+        },
+        "id": {
+          "minLength": 3,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/NodeKind"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "label_truncated": {
+          "title": "Label Truncated",
+          "type": "boolean"
+        },
+        "made_by": {
+          "$ref": "#/$defs/Maker"
+        },
+        "marker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Marker"
+        },
+        "order": {
+          "minimum": 0,
+          "title": "Order",
+          "type": "integer"
+        },
+        "regions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Region"
+          },
+          "title": "Regions",
+          "type": "array"
+        },
+        "roles": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RoleAssignment"
+          },
+          "title": "Roles",
+          "type": "array"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Section"
+        },
+        "source": {
+          "$ref": "#/$defs/NodeSource"
+        },
+        "table": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TableInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "unresolved": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Unresolved"
+          },
+          "title": "Unresolved",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "label_truncated",
+        "text",
+        "order",
+        "section",
+        "depth",
+        "confidence",
+        "source",
+        "made_by"
+      ],
+      "title": "Node",
+      "type": "object"
+    },
+    "NodeKind": {
+      "description": "What shape a node has.",
+      "enum": [
+        "document",
+        "section",
+        "paragraph",
+        "list_item",
+        "table",
+        "note",
+        "definition",
+        "term",
+        "external"
+      ],
+      "title": "NodeKind",
+      "type": "string"
+    },
+    "NodeSource": {
+      "additionalProperties": false,
+      "description": "The inkgrid blocks a node came from.",
+      "properties": {
+        "blocks": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Blocks",
+          "type": "array"
+        },
+        "keys": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Keys",
+          "type": "array"
+        }
+      },
+      "title": "NodeSource",
+      "type": "object"
+    },
+    "PageSize": {
+      "additionalProperties": false,
+      "description": "A page's size in PDF points.",
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "number"
+        },
+        "number": {
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "number"
+        }
+      },
+      "required": [
+        "number",
+        "width",
+        "height"
+      ],
+      "title": "PageSize",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "description": "Versions, models, the op log's head and the graph's own hash.",
+      "properties": {
+        "graph_hash": {
+          "title": "Graph Hash",
+          "type": "string"
+        },
+        "inkgrid_version": {
+          "title": "Inkgrid Version",
+          "type": "string"
+        },
+        "models": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Models",
+          "type": "object"
+        },
+        "ops_count": {
+          "minimum": 0,
+          "title": "Ops Count",
+          "type": "integer"
+        },
+        "ops_head": {
+          "title": "Ops Head",
+          "type": "string"
+        },
+        "pipeline_version": {
+          "title": "Pipeline Version",
+          "type": "string"
+        },
+        "prompts_hash": {
+          "title": "Prompts Hash",
+          "type": "string"
+        },
+        "rejected": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RejectedClaim"
+          },
+          "title": "Rejected",
+          "type": "array"
+        }
+      },
+      "required": [
+        "pipeline_version",
+        "inkgrid_version",
+        "prompts_hash",
+        "models",
+        "ops_head",
+        "ops_count",
+        "graph_hash"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Reason": {
+      "additionalProperties": false,
+      "description": "One piece of evidence about an element's confidence.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        }
+      },
+      "required": [
+        "code",
+        "severity"
+      ],
+      "title": "Reason",
+      "type": "object"
+    },
+    "ReasonCode": {
+      "description": "Why an element has the confidence it has (spec 06 \u00a7 1).",
+      "enum": [
+        "verified_text",
+        "text_defect",
+        "explicit_rule",
+        "explicit_inkgrid",
+        "weak_rule",
+        "semantic_agent",
+        "verifier_supported",
+        "verifier_rejected",
+        "verifier_abstained",
+        "verifier_unavailable",
+        "unresolved_parts",
+        "hidden_text",
+        "target_defect"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    },
+    "Region": {
+      "additionalProperties": false,
+      "description": "Where on a page a node sits: PDF points, unrotated page, origin top-left.",
+      "properties": {
+        "bbox": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        },
+        "page": {
+          "minimum": 1,
+          "title": "Page",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "page",
+        "bbox"
+      ],
+      "title": "Region",
+      "type": "object"
+    },
+    "RejectedClaim": {
+      "additionalProperties": false,
+      "description": "A model claim that failed grounding (spec 05 \u00a7 4).",
+      "properties": {
+        "item": {
+          "title": "Item",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "request_key": {
+          "title": "Request Key",
+          "type": "string"
+        },
+        "task": {
+          "title": "Task",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task",
+        "request_key",
+        "item",
+        "reason"
+      ],
+      "title": "RejectedClaim",
+      "type": "object"
+    },
+    "Role": {
+      "description": "What a part does. Declaration order is the order roles are listed in.",
+      "enum": [
+        "obligation",
+        "permission",
+        "prohibition",
+        "condition",
+        "exception",
+        "definition",
+        "computation",
+        "method",
+        "procedure",
+        "temporal",
+        "quantitative",
+        "scope",
+        "convention",
+        "example",
+        "external_pointer",
+        "administrative",
+        "summary",
+        "claim"
+      ],
+      "title": "Role",
+      "type": "string"
+    },
+    "RoleAssignment": {
+      "additionalProperties": false,
+      "description": "One role on one node, with the cue that justifies it.",
+      "properties": {
+        "basis": {
+          "$ref": "#/$defs/Basis"
+        },
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Span"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "made_by": {
+          "$ref": "#/$defs/Maker"
+        },
+        "role": {
+          "$ref": "#/$defs/Role"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Verdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "role",
+        "made_by",
+        "basis",
+        "confidence"
+      ],
+      "title": "RoleAssignment",
+      "type": "object"
+    },
+    "SetAside": {
+      "additionalProperties": false,
+      "description": "An inkgrid block that is not content, kept verbatim.",
+      "properties": {
+        "bbox": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bbox",
+          "type": "array"
+        },
+        "block": {
+          "title": "Block",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "furniture",
+            "toc"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "page": {
+          "minimum": 1,
+          "title": "Page",
+          "type": "integer"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "block",
+        "kind",
+        "text",
+        "page",
+        "bbox",
+        "reason"
+      ],
+      "title": "SetAside",
+      "type": "object"
+    },
+    "Severity": {
+      "description": "How much a reason weighs: info and advice \u2192 A, flag \u2192 B, doubt \u2192 C, critical \u2192 D.",
+      "enum": [
+        "info",
+        "advice",
+        "flag",
+        "doubt",
+        "critical"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "Span": {
+      "additionalProperties": false,
+      "description": "A verbatim run of a node's text: `quote == text[start:end]`.",
+      "properties": {
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "quote": {
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "quote"
+      ],
+      "title": "Span",
+      "type": "object"
+    },
+    "TableInfo": {
+      "additionalProperties": false,
+      "description": "A table's grid. Cells tile it exactly once.",
+      "properties": {
+        "banner_rows": {
+          "default": [],
+          "items": {
+            "type": "integer"
+          },
+          "title": "Banner Rows",
+          "type": "array"
+        },
+        "cells": {
+          "items": {
+            "$ref": "#/$defs/CellInfo"
+          },
+          "title": "Cells",
+          "type": "array"
+        },
+        "header_rows": {
+          "minimum": 0,
+          "title": "Header Rows",
+          "type": "integer"
+        },
+        "n_cols": {
+          "minimum": 1,
+          "title": "N Cols",
+          "type": "integer"
+        },
+        "n_rows": {
+          "minimum": 1,
+          "title": "N Rows",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "lattice",
+            "corridor"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "n_rows",
+        "n_cols",
+        "header_rows",
+        "source",
+        "cells"
+      ],
+      "title": "TableInfo",
+      "type": "object"
+    },
+    "Tier": {
+      "description": "The confidence tier: the worst severity among an element's reasons.",
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "title": "Tier",
+      "type": "string"
+    },
+    "Unresolved": {
+      "additionalProperties": false,
+      "description": "A call or reference that found no target.",
+      "properties": {
+        "candidates": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Candidates",
+          "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "note",
+            "reference"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Span"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text",
+        "reason"
+      ],
+      "title": "Unresolved",
+      "type": "object"
+    },
+    "Verdict": {
+      "additionalProperties": false,
+      "description": "A verifier model's judgement of an agent claim.",
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "request_key": {
+          "title": "Request Key",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "supported",
+            "unsupported",
+            "abstain"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "verdict",
+        "model",
+        "request_key"
+      ],
+      "title": "Verdict",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The product: a document as a knowledge graph of its own parts.",
+  "properties": {
+    "document": {
+      "$ref": "#/$defs/DocumentInfo"
+    },
+    "edges": {
+      "items": {
+        "$ref": "#/$defs/Edge"
+      },
+      "title": "Edges",
+      "type": "array"
+    },
+    "findings": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "nodes": {
+      "items": {
+        "$ref": "#/$defs/Node"
+      },
+      "title": "Nodes",
+      "type": "array"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "schema": {
+      "const": "inkthread.graph/1",
+      "default": "inkthread.graph/1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "set_aside": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SetAside"
+      },
+      "title": "Set Aside",
+      "type": "array"
+    },
+    "stats": {
+      "$ref": "#/$defs/GraphStats"
+    }
+  },
+  "required": [
+    "document",
+    "nodes",
+    "edges",
+    "stats",
+    "provenance"
+  ],
+  "title": "Graph",
+  "type": "object"
+}
