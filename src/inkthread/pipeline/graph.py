@@ -227,7 +227,7 @@ def build_pipeline(deps: PipelineDeps) -> Any:  # noqa: ANN401, PLR0915 - LangGr
         draft = state["draft"]
         todo = residual(draft)
         return await agent_stage(
-            "classify_agent", lambda: classify_agent(draft, todo, agents), draft, not todo
+            "classify_agent", lambda: classify_agent(draft, todo, agents), draft, empty=not todo
         )
 
     async def link(state: State) -> dict[str, Any]:
@@ -254,7 +254,7 @@ def build_pipeline(deps: PipelineDeps) -> Any:  # noqa: ANN401, PLR0915 - LangGr
             r.basis.value == "semantic" for n in draft.nodes.values() for r in n.roles.values()
         )
         return await agent_stage(
-            "verify_agent", lambda: verify_agent(draft, agents), draft, not claims
+            "verify_agent", lambda: verify_agent(draft, agents), draft, empty=not claims
         )
 
     async def finish(state: State) -> dict[str, Any]:
