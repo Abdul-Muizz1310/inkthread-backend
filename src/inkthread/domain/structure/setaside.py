@@ -35,13 +35,22 @@ def page_reference(text: str) -> str | None:
     return match.group(1) if match else None
 
 
+_ENTRY = re.compile(r"[A-Za-z).:]\s+\d{1,4}(?=\s+\S|$)")
+_FUSED_MIN = 2
+_WORDS_PER_ENTRY = 16
+
+
 def is_toc_line(block: RBlock) -> bool:
-    """A short heading, paragraph or list item ending in a page reference, with no modal verb."""
-    if block.kind not in _TOC_LINE_KINDS or len(block.text) > _TOC_LINE_LIMIT:
+    """A heading, paragraph or list item ending in a page reference with no modal verb: either
+    short (one entry) or several entries fused into one block, each a title then its page."""
+    if block.kind not in _TOC_LINE_KINDS or page_reference(block.text) is None:
         return False
-    if page_reference(block.text) is None:
+    if next(finditer_words(_MODAL, block.text), None) is not None:
         return False
-    return next(finditer_words(_MODAL, block.text), None) is None
+    if len(block.text) <= _TOC_LINE_LIMIT:
+        return True
+    entries = len(_ENTRY.findall(block.text))
+    return entries >= _FUSED_MIN and entries * _WORDS_PER_ENTRY >= len(block.text.split())
 
 
 def is_toc_heading(block: RBlock) -> bool:
@@ -66,7 +75,7 @@ def _runs(blocks: Sequence[RBlock]) -> list[tuple[int, int]]:
     runs: list[tuple[int, int]] = []
     start: int | None = None
     for i, block in enumerate(blocks):
-        if is_toc_line(block):
+        if is_toc_line(block) or (start is not None and is_toc_heading(block)):
             start = i if start is None else start
         elif start is not None:
             runs.append((start, i))
@@ -109,7 +118,7 @@ def _toc_blocks(blocks: Sequence[RBlock]) -> set[str]:
     for start, end in _runs(blocks):
         heading = _heading_before(blocks, start)
         needed = _RUN_MIN if heading is None else _RUN_MIN_AFTER_HEADING
-        if end - start < needed or _kept(blocks, start, end, body_page):
+        if end - start < needed or (heading is None and _kept(blocks, start, end, body_page)):
             continue
         out.update(b.id for b in blocks[start:end])
         if heading is not None and heading == start - 1:

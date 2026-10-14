@@ -50,8 +50,9 @@ def _x1_verbatim(graph: Graph, reading: Reading) -> Iterator[Violation]:
     parts = [n.text for n in graph.nodes if n.kind in PART_KINDS]
     for n in graph.nodes:
         if n.kind is NodeKind.DOCUMENT:
-            first = texts.get(n.source.blocks[0]) if n.source.blocks else None
-            if n.text and n.text != first:
+            lines = [texts.get(b, "") for b in n.source.blocks]
+            prefixes = {"\n".join(lines[:k]) for k in range(1, len(lines) + 1)}
+            if n.text and n.text not in prefixes:
                 yield Violation(check="X1", element=n.id, detail="not its title block's text")
         elif n.kind in _PLACED:
             if any(b not in texts for b in n.source.blocks):

@@ -73,9 +73,9 @@ class _Builder:
 
     def document(self, title: TitleResult) -> _Frame:
         block = title.block
-        text = block.text if block is not None else ""
-        label = text or self.reading.file_name or "document"
-        cited = [block, *title.repeats] if block is not None else []
+        text = title.text
+        label = " ".join(text.split()) or self.reading.file_name or "document"
+        cited = [*title.lines, *title.repeats]
         node = NodeDraft(
             id=document_id(self.reading.sha256),
             kind=NodeKind.DOCUMENT,
@@ -83,15 +83,19 @@ class _Builder:
             order=0,
             section=None,
             depth=0,
-            regions=[Region(page=r.page, bbox=r.bbox) for r in block.regions] if block else [],
+            regions=[Region(page=r.page, bbox=r.bbox) for b in title.lines for r in b.regions],
             made_by=TITLE_MAKER,
             label=label,
             source_blocks=[b.id for b in cited],
             source_keys=[b.key for b in cited],
         )
         self.draft.add_node(node, stage=STAGE)
-        for b in cited:
-            self.places[b.id] = BlockPlace(node=node.id, offset=0 if b.text == text else None)
+        offset = 0
+        for b in title.lines:
+            self.places[b.id] = BlockPlace(node=node.id, offset=offset)
+            offset += len(b.text) + 1
+        for b in title.repeats:
+            self.places[b.id] = BlockPlace(node=node.id, offset=None)
         return _Frame(node=node.id, depth=0)
 
     def contain(self, parent: str, child: str) -> None:
