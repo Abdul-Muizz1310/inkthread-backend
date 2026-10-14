@@ -16,7 +16,7 @@ TITLE_WINDOW = 3
 
 @dataclass(frozen=True)
 class TitleResult:
-    """The title's lines (one or more same-size headings) and the later headings that repeat them."""
+    """The title's lines (same-size headings) and the later headings that repeat them."""
 
     lines: tuple[RBlock, ...] = ()
     repeats: tuple[RBlock, ...] = ()

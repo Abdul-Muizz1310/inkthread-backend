@@ -72,7 +72,6 @@ class _Builder:
         return aside
 
     def document(self, title: TitleResult) -> _Frame:
-        block = title.block
         text = title.text
         label = " ".join(text.split()) or self.reading.file_name or "document"
         cited = [*title.lines, *title.repeats]

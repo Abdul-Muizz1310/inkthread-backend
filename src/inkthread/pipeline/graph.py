@@ -1,4 +1,4 @@
-"""The LangGraph pipeline (spec 00 § 4): read → structure → classify → link → relate → verify → finalize.
+"""The LangGraph pipeline (spec 00 § 4): read, structure, classify, link, relate, verify, finalize.
 
 Nodes are thin shells over the pure domain and the agent layer. They report progress through
 LangGraph's custom stream (`stage`, `delta` and `llm` events) and never touch the database: the job
@@ -147,7 +147,7 @@ def _ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
 
 
-def build_pipeline(deps: PipelineDeps) -> Any:  # noqa: ANN401 - LangGraph's compiled graph type
+def build_pipeline(deps: PipelineDeps) -> Any:  # noqa: ANN401, PLR0915 - LangGraph's graph type; one closure per stage
     """Compile the state graph over `deps`."""
     agents = AgentDeps(**{**deps.agents.__dict__, "log": StreamingCallLog(deps.agents.log)})
 
@@ -243,7 +243,9 @@ def build_pipeline(deps: PipelineDeps) -> Any:  # noqa: ANN401 - LangGraph's com
 
     async def relate(state: State) -> dict[str, Any]:
         draft = state["draft"]
-        return await agent_stage("relate_agent", lambda: relate_agent(draft, agents), draft, False)
+        return await agent_stage(
+            "relate_agent", lambda: relate_agent(draft, agents), draft, empty=False
+        )
 
     async def verify(state: State) -> dict[str, Any]:
         draft = state["draft"]
