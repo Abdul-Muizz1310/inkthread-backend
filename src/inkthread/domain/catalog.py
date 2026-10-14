@@ -20,7 +20,7 @@ RULES: Mapping[str, str] = {
     "R-INK-note": "inkgrid resolved a footnote call to its note",
     "R-INK-flags": "inkgrid marked hidden text or its verifier found a defect",
     "R-TERM-glossary": "a glossary block defines the term at the start of its text",
-    "R-TERM-quoted": "a quoted term followed by means, shall mean, has the meaning, refers to or is defined as",
+    "R-TERM-quoted": "a quoted term followed by means, shall mean or is defined as",
     "R-TERM-bare": "a capitalised term at the start of the text followed by means or is defined as",
     "R-TERM-the-term": 'the term "X" defines X',
     "R-TERM-parenthetical": 'a parenthetical (the "X") names a term',
