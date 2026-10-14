@@ -1,0 +1,294 @@
+"""The job runner (spec 08 § 4): claim, run the pipeline, persist then broadcast, finish.
+
+One runner task per process. It sleeps on an event that ingest sets and polls every `poll_s`, so a
+job enqueued by another instance (or left by a crash and requeued by the reaper) is still picked up.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import dataclasses
+import json
+import uuid
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass
+from typing import Any
+
+import structlog
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from inkthread.domain.finalize import ExplainFailed
+from inkthread.pipeline.graph import (
+    PipelineDeps,
+    PipelineFailure,
+    PipelineResult,
+    Reader,
+    StageRun,
+    run_pipeline,
+)
+from inkthread.repositories import documents, events, graphs, jobs
+from inkthread.services.broadcast import Broadcast, EventData, StreamEvent
+from inkthread.services.ingest import pdf_key
+from inkthread.services.llm import AgentFactory, CountingCallLog
+from inkthread.services.views import stats_out
+from inkthread.storage.blobs import BlobStore
+
+_log = structlog.get_logger(__name__)
+
+MAX_ATTEMPTS = 2
+POLL_S = 5.0
+
+
+def page_png_key(sha256: str, page: int) -> str:
+    """A rendered page."""
+    return f"pages/{sha256}/{page}.png"
+
+
+def page_geometry_key(sha256: str, page: int) -> str:
+    """A page's word geometry."""
+    return f"pages/{sha256}/{page}.json"
+
+
+def pages_prefix(sha256: str) -> str:
+    """Every page blob of a document."""
+    return f"pages/{sha256}/"
+
+
+@dataclass(frozen=True, slots=True)
+class _Claimed:
+    job_id: uuid.UUID
+    document_id: uuid.UUID
+    sha256: str
+    file_name: str | None
+
+
+def _llm_facts(counter: CountingCallLog, rejected: int = 0) -> dict[str, int]:
+    return {
+        "requests": counter.requests,
+        "cached": counter.cached,
+        "failed": counter.failed,
+        "rejected": rejected,
+    }
+
+
+def _stage_facts(stages: list[StageRun]) -> list[dict[str, Any]]:
+    return [{"name": s.name, "status": s.status, "ms": s.ms, "reason": s.reason} for s in stages]
+
+
+class JobRunner:
+    """Processes queued jobs one at a time."""
+
+    def __init__(
+        self,
+        *,
+        sessions: async_sessionmaker[AsyncSession],
+        blobs: BlobStore,
+        broadcast: Broadcast,
+        agents: AgentFactory,
+        reader: Reader,
+        inkgrid_version: str,
+        job_timeout_s: float,
+        poll_s: float = POLL_S,
+        max_attempts: int = MAX_ATTEMPTS,
+    ) -> None:
+        self._sessions = sessions
+        self._blobs = blobs
+        self._broadcast = broadcast
+        self._agents = agents
+        self._reader = reader
+        self._inkgrid_version = inkgrid_version
+        self._timeout = job_timeout_s
+        self._poll = poll_s
+        self._max_attempts = max_attempts
+        self._wakeup = asyncio.Event()
+        self._task: asyncio.Task[None] | None = None
+
+    def wake(self) -> None:
+        """A job was enqueued: stop sleeping."""
+        self._wakeup.set()
+
+    async def start(self) -> None:
+        """Reap, then process jobs in the background until `stop`."""
+        if self._task is None:
+            self._task = asyncio.create_task(self._loop(), name="inkthread-job-runner")
+
+    async def stop(self) -> None:
+        """Cancel the background task and wait for it."""
+        task, self._task = self._task, None
+        if task is None:
+            return
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    async def reap(self) -> tuple[int, int]:
+        """Requeue (or fail as `interrupted`) the jobs a crash left running."""
+        async with self._sessions() as s, s.begin():
+            requeued, failed = await jobs.reap(s, max_attempts=self._max_attempts)
+        if requeued or failed:
+            _log.info("jobs_reaped", requeued=requeued, failed=failed)
+        return requeued, failed
+
+    async def _loop(self) -> None:
+        try:
+            await self.reap()
+        except Exception as exc:  # noqa: BLE001 - a down database must not kill the service
+            _log.warning("reap_failed", error=type(exc).__name__)
+        while True:
+            self._wakeup.clear()
+            try:
+                ran = await self.run_once()
+            except Exception as exc:  # noqa: BLE001 - keep serving; the job row says what failed
+                _log.exception("runner_error", error=type(exc).__name__)
+                ran = False
+            if not ran:
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self._wakeup.wait(), self._poll)
+
+    async def run_once(self) -> bool:
+        """Claim and run the oldest queued job; False when none waits."""
+        claimed = await self._claim()
+        if claimed is None:
+            return False
+        log = _log.bind(job_id=str(claimed.job_id), document_id=str(claimed.document_id))
+        log.info("job_started")
+        await self._run(claimed)
+        log.info("job_finished")
+        return True
+
+    async def _claim(self) -> _Claimed | None:
+        async with self._sessions() as s, s.begin():
+            job = await jobs.claim_next(s)
+            if job is None:
+                return None
+            doc = await documents.get(s, job.document_id)
+            if doc is None:  # pragma: no cover - the foreign key cascades jobs with documents
+                return None
+            doc.status = "processing"
+            return _Claimed(job.id, doc.id, doc.sha256, doc.file_name)
+
+    async def _run(self, c: _Claimed) -> None:
+        base = self._agents(c.job_id)
+        counter = CountingCallLog(base.log)
+        deps = PipelineDeps(
+            reader=self._reader,
+            agents=dataclasses.replace(base, log=counter),
+            inkgrid_version=self._inkgrid_version,
+        )
+        seen: list[StageRun] = []
+        pdf = await self._blobs.get(pdf_key(c.sha256))
+        if pdf is None:
+            await self._fail(c, "pdf_missing", "the uploaded PDF is no longer stored", seen)
+            return
+        outcome: PipelineResult | PipelineFailure | None = None
+        stream = run_pipeline(pdf, c.file_name, deps)
+        try:
+            async with asyncio.timeout(self._timeout):
+                async for item in stream:
+                    if isinstance(item, PipelineResult | PipelineFailure):
+                        outcome = item
+                    else:
+                        await self._event(c.job_id, item, seen)
+        except TimeoutError:
+            await self._fail(
+                c, "job_timeout", f"the job ran past {self._timeout:g} s", seen, counter
+            )
+            return
+        except ExplainFailed as exc:
+            _log.error("explain_failed", job_id=str(c.job_id), detail=str(exc))
+            await self._fail(
+                c, "explain_failed", "the graph failed its explain checks", seen, counter
+            )
+            return
+        except Exception as exc:  # noqa: BLE001 - any pipeline bug fails the job, not the runner
+            _log.exception("pipeline_error", job_id=str(c.job_id), error=type(exc).__name__)
+            await self._fail(
+                c, "internal_error", "the pipeline stopped unexpectedly", seen, counter
+            )
+            return
+        finally:
+            if isinstance(stream, AsyncGenerator):
+                await stream.aclose()
+        if isinstance(outcome, PipelineResult):
+            await self._succeed(c, outcome, counter)
+        elif isinstance(outcome, PipelineFailure):
+            await self._fail(c, outcome.code, outcome.message, outcome.stages, counter)
+        else:  # pragma: no cover - run_pipeline always ends with one outcome
+            await self._fail(c, "internal_error", "the pipeline ended without a result", seen)
+
+    async def _event(self, job_id: uuid.UUID, item: dict[str, Any], seen: list[StageRun]) -> None:
+        name = str(item["event"])
+        data: EventData = dict(item["data"])
+        async with self._sessions() as s, s.begin():
+            seq = await events.append(s, job_id, name, data)
+            if name == "stage" and data.get("status") == "started":
+                await jobs.set_stage(s, job_id, str(data["stage"]))
+        if name == "stage" and data.get("status") != "started":
+            seen.append(
+                StageRun(
+                    name=str(data["stage"]),
+                    status=data["status"],
+                    ms=int(data.get("ms") or 0),
+                    reason=data.get("reason"),
+                )
+            )
+        self._broadcast.publish(job_id, StreamEvent(seq, name, data))
+
+    async def _succeed(self, c: _Claimed, result: PipelineResult, counter: CountingCallLog) -> None:
+        graph = result.final.graph
+        sha = c.sha256
+        for n, png in enumerate(result.pngs, start=1):
+            await self._blobs.put(page_png_key(sha, n), png, "image/png")
+        for page in range(1, graph.document.page_count + 1):
+            words = [
+                {"node": w.node, "start": w.start, "end": w.end, "bbox": list(w.bbox)}
+                for w in result.geometry.get(page, [])
+            ]
+            body = json.dumps(words, separators=(",", ":")).encode()
+            await self._blobs.put(page_geometry_key(sha, page), body, "application/json")
+        stats = stats_out(graph.stats.model_dump(mode="json"))
+        llm = _llm_facts(counter, sum(r.rejected for r in result.reports.values()))
+        done: EventData = {
+            "document_id": str(c.document_id),
+            "graph_hash": graph.provenance.graph_hash,
+            "stats": stats.model_dump(mode="json") if stats else None,
+        }
+        async with self._sessions() as s, s.begin():
+            await graphs.save(
+                s,
+                c.document_id,
+                graph=graph.model_dump(mode="json", by_alias=True),
+                graph_hash=graph.provenance.graph_hash,
+                ops=[op.model_dump(mode="json") for op in result.final.ops],
+            )
+            await documents.set_status(s, c.document_id, "ready", title=graph.document.title)
+            await jobs.finish(
+                s, c.job_id, status="succeeded", stages=_stage_facts(result.stages), llm=llm
+            )
+            seq = await events.append(s, c.job_id, "done", done)
+        self._broadcast.publish(c.job_id, StreamEvent(seq, "done", done))
+
+    async def _fail(
+        self,
+        c: _Claimed,
+        code: str,
+        message: str,
+        stages: list[StageRun],
+        counter: CountingCallLog | None = None,
+    ) -> None:
+        _log.info("job_failed", job_id=str(c.job_id), code=code)
+        failed: EventData = {"code": code, "message": message}
+        async with self._sessions() as s, s.begin():
+            await documents.set_status(s, c.document_id, "failed")
+            await jobs.finish(
+                s,
+                c.job_id,
+                status="failed",
+                stages=_stage_facts(stages),
+                llm=_llm_facts(counter) if counter else {},
+                error_code=code,
+                error_message=message,
+            )
+            seq = await events.append(s, c.job_id, "failed", failed)
+        self._broadcast.publish(c.job_id, StreamEvent(seq, "failed", failed))

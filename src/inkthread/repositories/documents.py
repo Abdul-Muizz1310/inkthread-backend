@@ -49,6 +49,12 @@ async def get_by_sha(s: AsyncSession, sha256: str) -> Document | None:
     return (await s.execute(select(Document).where(Document.sha256 == sha256))).scalar_one_or_none()
 
 
+async def get_by_sha_for_update(s: AsyncSession, sha256: str) -> Document | None:
+    """By content hash, locking the row until the transaction ends."""
+    q = select(Document).where(Document.sha256 == sha256).with_for_update()
+    return (await s.execute(q)).scalar_one_or_none()
+
+
 async def set_status(
     s: AsyncSession, document_id: uuid.UUID, status: str, *, title: str | None = None
 ) -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,3 +39,10 @@ async def save(
 async def get(s: AsyncSession, document_id: uuid.UUID) -> GraphRow | None:
     """A document's graph."""
     return await s.get(GraphRow, document_id)
+
+
+async def stats(s: AsyncSession, document_id: uuid.UUID) -> dict[str, Any] | None:
+    """A stored graph's `stats` object, without loading the graph."""
+    q = select(GraphRow.graph["stats"]).where(GraphRow.document_id == document_id)
+    value = (await s.execute(q)).scalar_one_or_none()
+    return value if isinstance(value, dict) else None
