@@ -10,6 +10,7 @@ from collections.abc import Mapping
 RULES: Mapping[str, str] = {
     "inkgrid": "read from the PDF's text layer by inkgrid",
     "R-SET-furniture": "a running header, footer or page number repeated across pages",
+    "R-SET-cover": "a label printed on two cover pages, such as a report number",
     "R-SET-toc": "a table of contents: lines that end in page numbers",
     "R-SEC-title": "the largest heading on page 1 is the document's title",
     "R-SEC-merge": "two heading lines of the same size, one under the other, are one heading",

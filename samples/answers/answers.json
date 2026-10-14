@@ -1,5 +1,436 @@
 [
  {
+  "request_key": "2c336d7b1b911431f647b77ebc1cc4656f216c1e20777858a742c0fbc513f782",
+  "response": {
+   "relations": [
+    {
+     "evidence": "lifecycle may yield different results than measuring risk at a later stage;",
+     "focus": "c1",
+     "target": "c2",
+     "type": "illustrates"
+    },
+    {
+     "evidence": "requires some form of baseline metrics for comparison. This is difficult to systematize since AI systems carry out different tasks – and perform tasks differently – than humans.",
+     "focus": "c7",
+     "target": "c6",
+     "type": "illustrates"
+    },
+    {
+     "evidence": "Risk tolerance and the level of risk that is acceptable to organizations or society are highly contextual and application and use-case specific.",
+     "focus": "c10",
+     "target": "c11",
+     "type": "qualifies"
+    },
+    {
+     "evidence": "To the extent that challenges for specifying AI risk tolerances remain unresolved, there may be contexts where a risk management framework is not yet readily applicable for mitigating negative AI risks.",
+     "focus": "c11",
+     "target": "c10",
+     "type": "qualifies"
+    },
+    {
+     "evidence": "Higher initial prioritization may be called for in settings where the AI system is trained on large datasets comprised of sensitive or protected data such as personally identifiable information, or where the outputs of the AI systems have direct or indirect impact on humans.",
+     "focus": "c13",
+     "target": "c14",
+     "type": "illustrates"
+    },
+    {
+     "evidence": "AI risk management should be integrated and incorporated into broader enterprise risk management strategies and processes.",
+     "focus": "c17",
+     "target": "c18",
+     "type": "illustrates"
+    }
+   ]
+  },
+  "served_model": "nvidia/nemotron-3-super-120b-a12b:free",
+  "task": "relate"
+ },
+ {
+  "request_key": "46cbf2ef332442c1bc8525768f719a3ad7450474740f0f236b2dc8863a5b7365",
+  "response": {
+   "relations": [
+    {
+     "evidence": "Such identification is not intended to imply recommendation or endorsement by the National Institute of Standards and Technology",
+     "focus": "c1",
+     "target": "c2",
+     "type": "qualifies"
+    },
+    {
+     "evidence": "NIST will review the content and usefulness of the Framework regularly to determine if an update is appropriate; a review with formal input from the AI community is expected to take place no later than 2028.",
+     "focus": "c6",
+     "target": "c7",
+     "type": "illustrates"
+    },
+    {
+     "evidence": "AI systems and the contexts in which they are deployed are frequently complex, making it difficult to detect and respond to failures when they occur.",
+     "focus": "c10",
+     "target": "c12",
+     "type": "illustrates"
+    },
+    {
+     "evidence": "While GOVERN applies to all stages of organizations’ AI risk management processes and procedures, the MAP, MEASURE, and MANAGE functions can be applied in AI system-specific contexts and at specific stages of the AI lifecycle.",
+     "focus": "c19",
+     "target": "c18",
+     "type": "governs"
+    },
+    {
+     "evidence": "Figure 1 provides examples of potential harms that can be related to AI systems.",
+     "focus": "c25",
+     "target": "c31",
+     "type": "illustrates"
+    }
+   ]
+  },
+  "served_model": "nvidia/nemotron-3-super-120b-a12b:free",
+  "task": "relate"
+ },
+ {
+  "request_key": "6fbfc220e70e81ff0409ee1df7b35a7ccf5f84af809ed6cdeb18bea46404ff92",
+  "response": {
+   "relations": [
+    {
+     "evidence": "For example, whether correct or not, AI systems are often perceived as being more objective than humans or as offering greater capabilities than general software.",
+     "focus": "c1",
+     "target": "c2",
+     "type": "illustrates"
+    },
+    {
+     "evidence": "Fig. 1. Examples of potential harms related to AI systems.",
+     "focus": "c3",
+     "target": "c4",
+     "type": "illustrates"
+    },
+    {
+     "evidence": "Tracking emergent risks: Organizations’ risk management efforts will be enhanced by identifying and tracking emergent risks and considering techniques for measuring them.",
+     "focus": "c9",
+     "target": "c10",
+     "type": "qualifies"
+    },
+    {
+     "evidence": "AI system impact assessment approaches can help AI actors understand potential impacts or harms within specific contexts.",
+     "focus": "c11",
+     "target": "c13",
+     "type": "qualifies"
+    },
+    {
+     "evidence": "Risk at different stages of the AI lifecycle: Measuring risk at an earlier stage in the AI",
+     "focus": "c14",
+     "target": "c15",
+     "type": "qualifies"
+    }
+   ]
+  },
+  "served_model": "nvidia/nemotron-3-super-120b-a12b:free",
+  "task": "relate"
+ },
+ {
+  "request_key": "71ffda27890a3b744927701d2f2b8a320a1a3b836db317ee6ca27b9cef78c190",
+  "response": {
+   "labels": [
+    {
+     "evidence": [
+      {
+       "quote": "environmental groups, civil society organizations, end users, and potentially impacted individuals and communities",
+       "role": "scope"
+      },
+      {
+       "quote": "These actors can:",
+       "role": "permission"
+      }
+     ],
+     "part": "n1",
+     "roles": [
+      "scope",
+      "permission"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "Successful risk management depends upon a sense of collective responsibility among AI actors shown in Figure 3.",
+       "role": "claim"
+      }
+     ],
+     "part": "n6",
+     "roles": [
+      "claim"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "See Appendix A for detailed descriptions of AI actor tasks, including details about testing, evaluation, verification, and validation tasks.",
+       "role": "external_pointer"
+      }
+     ],
+     "part": "n7",
+     "roles": [
+      "external_pointer"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "they often need to be responsive to a multiplicity of criteria",
+       "role": "obligation"
+      },
+      {
+       "quote": "This Framework articulates the following characteristics of trustworthy AI",
+       "role": "scope"
+      }
+     ],
+     "part": "n8",
+     "roles": [
+      "obligation",
+      "scope"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "systems include: valid and reliable, safe, secure and resilient, accountable and transparent, explainable and interpretable, privacy-enhanced, and fair with harmful bias",
+       "role": "definition"
+      }
+     ],
+     "part": "n9",
+     "roles": [
+      "definition"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "Creating trustworthy AI requires balancing each of these characteristics",
+       "role": "obligation"
+      },
+      {
+       "quote": "Neglecting these characteristics can increase the probability and magnitude of negative consequences.",
+       "role": "claim"
+      },
+      {
+       "quote": "based on the AI system’s context of use",
+       "role": "condition"
+      }
+     ],
+     "part": "n10",
+     "roles": [
+      "obligation",
+      "claim",
+      "condition"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "Addressing AI trustworthiness characteristics individually will not ensure AI system trustworthiness;",
+       "role": "claim"
+      }
+     ],
+     "part": "n11",
+     "roles": [
+      "claim"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "Understanding and treatment of trustworthiness characteristics depends on an AI actor’s particular role within the AI lifecycle.",
+       "role": "condition"
+      },
+      {
+       "quote": "For any given AI system, an AI designer or developer may have a different perception of the characteristics than the deployer.",
+       "role": "claim"
+      }
+     ],
+     "part": "n12",
+     "roles": [
+      "condition",
+      "claim"
+     ]
+    }
+   ]
+  },
+  "served_model": "nvidia/nemotron-3-super-120b-a12b:free",
+  "task": "classify"
+ },
+ {
+  "request_key": "752475e3614b48ea4963711a27ef8fa3907df885bcff9cc6f5e097a824a77a52",
+  "response": {
+   "labels": [
+    {
+     "evidence": [
+      {
+       "quote": "Measuring risk at an earlier stage in the AI",
+       "role": "method"
+      }
+     ],
+     "part": "n1",
+     "roles": [
+      "method"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "Inscrutability: Inscrutable AI systems can complicate risk measurement.",
+       "role": "definition"
+      }
+     ],
+     "part": "n2",
+     "roles": [
+      "definition"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "Risk tolerance refers to the organization’s or AI actor’s (see Appendix A) readiness to bear the risk in order to achieve its objectives.",
+       "role": "definition"
+      },
+      {
+       "quote": "it does not prescribe risk tolerance",
+       "role": "exception"
+      },
+      {
+       "quote": "While the AI RMF can be used to prioritize risk",
+       "role": "scope"
+      }
+     ],
+     "part": "n3",
+     "roles": [
+      "definition",
+      "exception",
+      "scope"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "To the extent that challenges for specifying AI risk tolerances remain unresolved",
+       "role": "condition"
+      }
+     ],
+     "part": "n4",
+     "roles": [
+      "condition"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "Residual risk – defined as risk remaining after risk treatment (Source: ISO GUIDE 73)",
+       "role": "definition"
+      }
+     ],
+     "part": "n5",
+     "roles": [
+      "definition"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "The AI RMF may be utilized along with related guidance and frameworks",
+       "role": "permission"
+      },
+      {
+       "quote": "Examples of overlapping risks include: privacy concerns related to the use of underlying data to train AI systems",
+       "role": "example"
+      }
+     ],
+     "part": "n6",
+     "roles": [
+      "permission",
+      "example"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "The AI RMF is intended to be used by AI actors across the AI lifecycle and dimensions.",
+       "role": "scope"
+      }
+     ],
+     "part": "n7",
+     "roles": [
+      "scope"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "OECD (2022) OECD Framework for the Classification of AI systems — OECD Digital Economy Papers",
+       "role": "external_pointer"
+      }
+     ],
+     "part": "n8",
+     "roles": [
+      "external_pointer"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "AI actors involved in these dimensions who perform or manage the design, development, deployment, evaluation, and use of AI systems and drive AI risk management efforts are the primary AI RMF audience.",
+       "role": "scope"
+      }
+     ],
+     "part": "n9",
+     "roles": [
+      "scope"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "TEVV tasks can provide insights relative to technical, societal, legal, and ethical standards or norms",
+       "role": "procedure"
+      },
+      {
+       "quote": "TEVV allows for both mid-course remediation and post-hoc risk management.",
+       "role": "method"
+      }
+     ],
+     "part": "n10",
+     "roles": [
+      "procedure",
+      "method"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "The AI actors in this dimension comprise a separate AI RMF audience who informs the primary audience.",
+       "role": "scope"
+      }
+     ],
+     "part": "n11",
+     "roles": [
+      "scope"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "Modified from OECD (2022) OECD Framework for the Classification of AI systems — OECD Digital Economy Papers.",
+       "role": "external_pointer"
+      },
+      {
+       "quote": "Ideally, risk management efforts start with the Plan and Design function in the application context and are performed throughout the AI system lifecycle.",
+       "role": "procedure"
+      }
+     ],
+     "part": "n12",
+     "roles": [
+      "external_pointer",
+      "procedure"
+     ]
+    }
+   ]
+  },
+  "served_model": "google/gemma-4-26b-a4b-it:free",
+  "task": "classify"
+ },
+ {
   "request_key": "857030cef481a2acaea403f1b7ade12eb4acdd551687f4394c6c401345c0fcf8",
   "response": {
    "labels": [
@@ -37,6 +468,172 @@
   },
   "served_model": "google/gemma-4-31b-it:free",
   "task": "verify"
+ },
+ {
+  "request_key": "f4b55e3e46e9efecb9385fb9d430c388a43fb083751dce9a9842c91c6372186e",
+  "response": {
+   "labels": [
+    {
+     "evidence": [
+      {
+       "quote": "U.S. Department of Commerce",
+       "role": "administrative"
+      }
+     ],
+     "part": "n1",
+     "roles": [
+      "administrative"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "National Institute of Standards and Technology",
+       "role": "administrative"
+      }
+     ],
+     "part": "n2",
+     "roles": [
+      "administrative"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "may be identified",
+       "role": "permission"
+      },
+      {
+       "quote": "not intended to imply recommendation",
+       "role": "exception"
+      }
+     ],
+     "part": "n3",
+     "roles": [
+      "permission",
+      "exception"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "Examples of potential harms",
+       "role": "example"
+      }
+     ],
+     "part": "n4",
+     "roles": [
+      "example"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "can lead to more trustworthy AI systems",
+       "role": "claim"
+      }
+     ],
+     "part": "n5",
+     "roles": [
+      "claim"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "could lead to more trustworthy AI systems",
+       "role": "claim"
+      }
+     ],
+     "part": "n6",
+     "roles": [
+      "claim"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "examples of potential harms",
+       "role": "example"
+      }
+     ],
+     "part": "n7",
+     "roles": [
+      "example"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "Examples of potential harms",
+       "role": "example"
+      },
+      {
+       "quote": "can mitigate negative risks and contribute to benefits",
+       "role": "claim"
+      }
+     ],
+     "part": "n8",
+     "roles": [
+      "example",
+      "claim"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "does not imply that an AI system necessarily poses either a high or low risk",
+       "role": "claim"
+      },
+      {
+       "quote": "does not imply that an AI system necessarily poses either a high or low risk",
+       "role": "exception"
+      }
+     ],
+     "part": "n10",
+     "roles": [
+      "claim",
+      "exception"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "considering techniques for measuring them",
+       "role": "method"
+      },
+      {
+       "quote": "Organizations’ risk management efforts will be enhanced by identifying and tracking emergent risks",
+       "role": "claim"
+      }
+     ],
+     "part": "n11",
+     "roles": [
+      "method",
+      "claim"
+     ]
+    },
+    {
+     "evidence": [
+      {
+       "quote": "AI system impact assessment approaches can help",
+       "role": "method"
+      },
+      {
+       "quote": "can help AI actors understand potential impacts or harms",
+       "role": "claim"
+      }
+     ],
+     "part": "n12",
+     "roles": [
+      "method",
+      "claim"
+     ]
+    }
+   ]
+  },
+  "served_model": "nvidia/nemotron-3-super-120b-a12b:free",
+  "task": "classify"
  },
  {
   "request_key": "f97c579206cba2fdaa952bc606f422432cbbd4933ee60bc485b512b2da7077af",

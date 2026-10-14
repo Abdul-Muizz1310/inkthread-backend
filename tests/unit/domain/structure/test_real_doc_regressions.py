@@ -65,3 +65,24 @@ def test_fused_toc_paragraphs_and_list_headings_stay_in_the_run() -> None:
     gone = {e.block for e in set_aside(list(b.build().blocks))}
     assert {first, fused, lot, tables} <= gone
     assert body not in gone
+
+
+def test_a_label_repeated_on_the_cover_pages_is_furniture() -> None:
+    b = ReadingBuilder(pages=3)
+    cover = b.heading("NIST AI 100-1", level=4)
+    b.heading("Artificial Intelligence Risk Management Framework", level=1)
+    again = b.heading("NIST AI 100-1", level=2, page=2)
+    b.heading("Executive Summary", level=3, page=3)
+    b.para("Body.", page=3)
+    entries = {e.block: e for e in set_aside(list(b.build().blocks))}
+    assert {cover, again} <= set(entries)
+    assert entries[cover].reason == "R-SET-cover"
+    assert entries[cover].kind == "furniture"
+
+
+def test_a_heading_repeated_later_in_the_body_is_kept() -> None:
+    b = ReadingBuilder(pages=5)
+    b.heading("Fees", level=2)
+    b.para("Body.")
+    keep = b.heading("Fees", level=2, page=4)
+    assert keep not in {e.block for e in set_aside(list(b.build().blocks))}

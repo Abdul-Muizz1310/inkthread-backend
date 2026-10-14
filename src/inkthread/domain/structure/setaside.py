@@ -13,6 +13,8 @@ from inkthread.domain.text import finditer_words
 
 FURNITURE = "R-SET-furniture"
 TOC = "R-SET-toc"
+COVER = "R-SET-cover"
+_COVER_PAGES = 2
 
 TOC_HEADINGS = frozenset(
     {"contents", "table of contents", "list of tables", "list of figures", "list of exhibits"}
@@ -126,14 +128,34 @@ def _toc_blocks(blocks: Sequence[RBlock]) -> set[str]:
     return out
 
 
+def _cover_blocks(blocks: Sequence[RBlock]) -> set[str]:
+    """A heading printed verbatim on two of the first pages is a cover label (a report number,
+    an agency banner), not a section: it would otherwise swallow the document."""
+    first = [b.level for b in blocks if b.kind == "heading" and b.page == 1 and b.level]
+    title_level = min(first) if first else None
+    seen: dict[str, list[RBlock]] = {}
+    for b in blocks:
+        if b.kind == "heading" and b.page <= _COVER_PAGES:
+            seen.setdefault(fold(b.text), []).append(b)
+    return {
+        b.id
+        for group in seen.values()
+        if len({b.page for b in group}) > 1 and all(b.level != title_level for b in group)
+        for b in group
+    }
+
+
 def set_aside(blocks: Sequence[RBlock]) -> list[SetAside]:
     """Set-aside entries for the reading's blocks, in reading order."""
     content = [b for b in blocks if b.kind != "furniture"]
     toc = _toc_blocks(content)
+    cover = _cover_blocks(content) - toc
     entries: list[SetAside] = []
     for block in blocks:
         if block.kind == "furniture":
             entries.append(_entry(block, "furniture", FURNITURE))
         elif block.id in toc:
             entries.append(_entry(block, "toc", TOC))
+        elif block.id in cover:
+            entries.append(_entry(block, "furniture", COVER))
     return entries
