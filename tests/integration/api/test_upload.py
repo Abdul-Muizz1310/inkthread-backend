@@ -47,7 +47,7 @@ async def test_valid_pdf_is_accepted_and_queued(api: ApiFactory) -> None:  # T-A
         assert doc["expires_at"] is not None
         assert doc["latest_job"]["id"] == job["id"]
         assert len(doc["sha256"]) == 64
-        stored = a.blob_root / "pdf" / f"{doc['sha256']}.pdf"
+        stored = a.upload_root / "pdf" / f"{doc['sha256']}.pdf"  # held until processed
         assert stored.read_bytes() == pdfs.sectioned()
 
 

@@ -18,7 +18,7 @@ flowchart TB
   P --> AG[agents] --> LLM[llm: OpenRouter]
   P --> RD[reader: child process] --> INK[inkgrid]
   SVC --> REPO[repositories] --> DB[(Postgres)]
-  SVC --> BL[(blobs: disk or R2)]
+  SVC --> BL[(sample files: Postgres)] & UP[(upload files: temp disk, 1 h)]
 ```
 
 - **Pipeline.** One LangGraph state graph; nodes are thin shells over the domain and stream `stage`,

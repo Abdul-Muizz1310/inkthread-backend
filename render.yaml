@@ -16,21 +16,9 @@ services:
       - key: CORS_ORIGINS
         sync: false
       - key: BLOB_STORE
-        value: postgres   # r2 once the R2 credentials are replaced
-      - key: BLOB_BUDGET_MB
-        value: "300"
-      - key: R2_ACCOUNT_ID
-        sync: false
-      - key: R2_ACCESS_KEY_ID
-        sync: false
-      - key: R2_SECRET_ACCESS_KEY
-        sync: false
-      - key: R2_BUCKET
-        sync: false
-      - key: R2_ENDPOINT
-        sync: false
-      - key: R2_PREFIX
-        value: inkthread/
+        value: postgres   # the samples' files; uploads are processed, not kept
+      - key: UPLOAD_TTL_MINUTES
+        value: "60"
       - key: OPENROUTER_API_KEY
         sync: false
       - key: OPENROUTER_SITE_URL

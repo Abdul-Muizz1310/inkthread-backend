@@ -1,4 +1,4 @@
-"""Plan Task 17: ingest, the job runner, the reaper and retention against real Postgres."""
+"""Plan Task 17: ingest, the job runner, the reaper and the sweep against real Postgres."""
 
 from __future__ import annotations
 
@@ -24,10 +24,12 @@ from inkthread.services.ingest import IngestLimits, IngestService
 from inkthread.services.retention import RetentionSweeper
 from inkthread.services.runner import JobRunner
 from inkthread.storage.blobs import LocalBlobStore
+from inkthread.storage.stores import Stores
 
 pytestmark = pytest.mark.integration
 
-LIMITS = IngestLimits(max_pages=40, max_queue=10, retention_days=7)
+TTL = dt.timedelta(minutes=60)
+LIMITS = IngestLimits(max_pages=40, max_queue=10, upload_ttl=TTL)
 
 
 def agents(_job_id: uuid.UUID) -> AgentDeps:
@@ -44,10 +46,15 @@ def agents(_job_id: uuid.UUID) -> AgentDeps:
 class Harness:
     def __init__(self, sessions: async_sessionmaker[AsyncSession], root: Path) -> None:
         self.sessions = sessions
-        self.blobs = LocalBlobStore(root)
+        self.samples = LocalBlobStore(root / "samples")
+        self.blobs = LocalBlobStore(root / "uploads")  # the upload store
+        self.stores = Stores(samples=self.samples, uploads=self.blobs)
         self.broadcast = Broadcast()
         self.woken = 0
-        self.ingest = IngestService(sessions, self.blobs, limits=LIMITS, wake=self._wake)
+        self.ingest = IngestService(sessions, self.stores, limits=LIMITS, wake=self._wake)
+
+    def sweeper(self) -> RetentionSweeper:
+        return RetentionSweeper(self.sessions, self.stores)
 
     def _wake(self) -> None:
         self.woken += 1
@@ -55,7 +62,7 @@ class Harness:
     def runner(self, reader: object = read_inprocess) -> JobRunner:
         return JobRunner(
             sessions=self.sessions,
-            blobs=self.blobs,
+            stores=self.stores,
             broadcast=self.broadcast,
             agents=agents,
             reader=reader,  # type: ignore[arg-type]
@@ -92,8 +99,8 @@ async def test_ingest_dedupes_and_requeues(h: Harness) -> None:
 async def test_ingest_refuses_when_the_queue_is_full(h: Harness) -> None:
     small = IngestService(
         h.sessions,
-        h.blobs,
-        limits=IngestLimits(max_pages=40, max_queue=1, retention_days=7),
+        h.stores,
+        limits=IngestLimits(max_pages=40, max_queue=1, upload_ttl=TTL),
         wake=lambda: None,
     )
     await small.ingest(pdfs.sectioned(), None)
@@ -151,6 +158,7 @@ async def test_runner_persists_each_event_before_broadcasting_it(h: Harness) -> 
         assert row.graph_hash == rows[-1].payload["graph_hash"]
         assert row.graph["schema"] == "inkthread.graph/1"
     sha = up.document.sha256
+    assert await h.blobs.get(f"pdf/{sha}.pdf") is None  # T-PJ-16: processed, not kept
     assert (await h.blobs.get(f"pages/{sha}/1.png")) == b"png"
     geometry = json.loads((await h.blobs.get(f"pages/{sha}/1.json")) or b"null")
     assert geometry
@@ -176,6 +184,7 @@ async def test_runner_records_a_failure_code(h: Harness) -> None:
     assert doc.status == "failed"
     assert rows[-1].type == "failed"
     assert rows[-1].payload == {"code": "no_text_layer", "message": "the PDF has no text layer"}
+    assert await h.blobs.get(f"pdf/{up.document.sha256}.pdf") is None  # T-PJ-16
     live = [sub.queue.get_nowait() for _ in range(sub.queue.qsize())]
     assert [e.seq for e in live] == [r.seq for r in rows]
     sub.close()
@@ -215,20 +224,83 @@ async def test_runner_start_reaps_then_processes(h: Harness) -> None:
     assert (job.status, job.error_code) == ("failed", "interrupted")
 
 
-async def test_retention_deletes_expired_uploads_and_their_blobs(h: Harness) -> None:
+async def test_sweep_deletes_expired_uploads_with_their_files(h: Harness) -> None:  # T-PJ-7
     old = await h.ingest.ingest(pdfs.sectioned(), None)
     fresh = await h.ingest.ingest(pdfs.two_pages(), None)
     await h.blobs.put(f"pages/{old.document.sha256}/1.png", b"png", "image/png")
-    sweeper = RetentionSweeper(h.sessions, h.blobs)
-    later = dt.datetime.now(dt.UTC) + dt.timedelta(days=7, hours=1)
+    later = dt.datetime.now(dt.UTC) + TTL + dt.timedelta(minutes=1)
     async with h.sessions() as s, s.begin():
         doc = await documents.get(s, fresh.document.id)
         assert doc is not None
-        doc.expires_at = later + dt.timedelta(days=1)
-    assert await sweeper.sweep(later) == 1
+        doc.expires_at = later + dt.timedelta(minutes=30)
+    assert await h.sweeper().sweep(later) == 1
     async with h.sessions() as s:
         assert await documents.get(s, old.document.id) is None
         assert await documents.get(s, fresh.document.id) is not None
     assert await h.blobs.get(f"pdf/{old.document.sha256}.pdf") is None
     assert await h.blobs.get(f"pages/{old.document.sha256}/1.png") is None
     assert await h.blobs.get(f"pdf/{fresh.document.sha256}.pdf") is not None
+
+
+async def test_uploads_and_samples_keep_files_apart(h: Harness) -> None:  # T-PJ-15
+    up = await h.ingest.ingest(pdfs.sectioned(), None)
+    sample = await h.ingest.ingest(pdfs.two_pages(), None, kind="sample")
+    assert await h.blobs.get(f"pdf/{up.document.sha256}.pdf") is not None
+    assert await h.samples.get(f"pdf/{up.document.sha256}.pdf") is None
+    assert await h.samples.get(f"pdf/{sample.document.sha256}.pdf") is not None
+    assert await h.blobs.get(f"pdf/{sample.document.sha256}.pdf") is None
+    runner = h.runner()
+    assert await runner.run_once() is True
+    assert await runner.run_once() is True
+    for sha, own, other in (
+        (up.document.sha256, h.blobs, h.samples),
+        (sample.document.sha256, h.samples, h.blobs),
+    ):
+        assert await own.get(f"pages/{sha}/1.png") is not None
+        assert await own.get(f"pages/{sha}/1.json") is not None
+        assert await other.get(f"pages/{sha}/1.png") is None
+    assert await h.samples.get(f"pdf/{sample.document.sha256}.pdf") is not None  # samples keep it
+
+
+async def test_sweep_deletes_ready_uploads_whose_files_are_gone(h: Harness) -> None:  # T-PJ-17
+    lost = await h.ingest.ingest(pdfs.sectioned(), None)
+    kept = await h.ingest.ingest(pdfs.two_pages(), None)
+    sample = await h.ingest.ingest(pdfs.footnoted(), None, kind="sample")
+    runner = h.runner()
+    for _ in range(3):
+        assert await runner.run_once() is True
+    await h.blobs.delete_prefix(f"pages/{lost.document.sha256}/")  # a restart lost them
+    await h.samples.delete_prefix(f"pages/{sample.document.sha256}/")
+    assert await h.sweeper().sweep(dt.datetime.now(dt.UTC)) == 1
+    async with h.sessions() as s:
+        assert await documents.get(s, lost.document.id) is None
+        assert await documents.get(s, kept.document.id) is not None
+        assert await documents.get(s, sample.document.id) is not None
+
+
+async def test_uploading_again_renews_or_reprocesses(h: Harness) -> None:  # T-PJ-18
+    first = await h.ingest.ingest(pdfs.sectioned(), None)
+    assert await h.runner().run_once() is True
+    async with h.sessions() as s:
+        doc = await documents.get(s, first.document.id)
+        assert doc is not None
+        assert doc.expires_at is not None
+        before = doc.expires_at
+    again = await h.ingest.ingest(pdfs.sectioned(), None)
+    assert again.deduplicated is True
+    async with h.sessions() as s:
+        doc = await documents.get(s, first.document.id)
+        assert doc is not None
+        assert doc.expires_at is not None
+        assert doc.expires_at > before
+    await h.blobs.delete_prefix(f"pages/{first.document.sha256}/")
+    woken = h.woken
+    third = await h.ingest.ingest(pdfs.sectioned(), None)
+    assert third.deduplicated is False
+    assert third.document.id == first.document.id
+    assert third.job is not None
+    assert third.job.status == "queued"
+    assert h.woken == woken + 1
+    assert await h.blobs.get(f"pdf/{first.document.sha256}.pdf") is not None
+    # Requeued, its images still gone: the sweep must not take it from under the new job.
+    assert await h.sweeper().sweep(dt.datetime.now(dt.UTC)) == 0

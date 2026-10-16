@@ -6,6 +6,7 @@ module (in tests, say) needs no configuration.
 
 from __future__ import annotations
 
+import datetime as dt
 import importlib.metadata
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -37,9 +38,9 @@ from inkthread.services.llm import AgentSettings, ModelFactory, agent_factory
 from inkthread.services.retention import RetentionSweeper
 from inkthread.services.runner import JobRunner
 from inkthread.services.streams import StreamService
-from inkthread.storage.blobs import BlobStore
+from inkthread.storage.blobs import BlobStore, LocalBlobStore
 from inkthread.storage.factory import make_blob_store
-from inkthread.storage.pgblobs import PgBlobStore
+from inkthread.storage.stores import Stores
 
 PING_INTERVAL_S = 15.0
 STREAM_MAX_S = 600.0
@@ -90,8 +91,9 @@ def create_app(
 ) -> FastAPI:
     """Build the app.
 
-    `reader`, `model` and `blobs` replace the production adapters (tests pass the in-process
-    reader and a fake model). `run_jobs=False` leaves the job runner and retention sweeper off.
+    `reader`, `model` and `blobs` (the samples' store) replace the production adapters (tests pass
+    the in-process reader and a fake model). Uploads always go to `UPLOAD_ROOT` (spec 08 § 2).
+    `run_jobs=False` leaves the job runner and the sweep off.
     """
     cfg = settings or get_settings()
     configure_logging(level=cfg.log_level, json_logs=cfg.is_production)
@@ -100,7 +102,10 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         engine = make_engine(cfg.database_url)
         sessions = make_sessions(engine)
-        store = blobs or make_blob_store(cfg, sessions)
+        stores = Stores(
+            samples=blobs or make_blob_store(cfg, sessions),
+            uploads=LocalBlobStore(cfg.upload_root),
+        )
         http = httpx.AsyncClient()
         key = cfg.openrouter_api_key
 
@@ -118,7 +123,7 @@ def create_app(
         broadcast = Broadcast()
         runner = JobRunner(
             sessions=sessions,
-            blobs=store,
+            stores=stores,
             broadcast=broadcast,
             agents=agent_factory(
                 sessions,
@@ -144,23 +149,18 @@ def create_app(
             broadcast=broadcast,
             ingest=IngestService(
                 sessions,
-                store,
+                stores,
                 limits=IngestLimits(
                     max_pages=cfg.max_pages,
                     max_queue=cfg.max_queue,
-                    retention_days=cfg.retention_days,
+                    upload_ttl=dt.timedelta(minutes=cfg.upload_ttl_minutes),
                 ),
                 wake=runner.wake,
             ),
-            documents=DocumentService(sessions, store, wake=runner.wake),
+            documents=DocumentService(sessions, stores, wake=runner.wake),
             streams=StreamService(sessions, broadcast),
             runner=runner,
-            retention=RetentionSweeper(
-                sessions,
-                store,
-                blob_budget_bytes=cfg.blob_budget_mb * 1024 * 1024,
-                usage=store.total_bytes if isinstance(store, PgBlobStore) else None,
-            ),
+            retention=RetentionSweeper(sessions, stores),
         )
         app.state.engine = engine
         app.state.services = services

@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from inkthread.core.errors import GraphNotReady, NotFound
+from inkthread.core.errors import GraphNotReady, NotFound, UploadNotKept
 from inkthread.domain.exports import cypher, graphml, jsonld
 from inkthread.domain.model import Graph
 from inkthread.domain.ops import Op
@@ -23,7 +23,7 @@ from inkthread.schemas.jobs import JobOut
 from inkthread.services.ingest import pdf_key
 from inkthread.services.runner import page_geometry_key, page_png_key, pages_prefix
 from inkthread.services.views import document_out, job_out
-from inkthread.storage.blobs import BlobStore
+from inkthread.storage.stores import Stores
 
 ExportFormat = Literal["jsonld", "graphml", "cypher"]
 _GEOMETRY: TypeAdapter[list[GeometryWord]] = TypeAdapter(list[GeometryWord])
@@ -59,12 +59,12 @@ class DocumentService:
     def __init__(
         self,
         sessions: async_sessionmaker[AsyncSession],
-        blobs: BlobStore,
+        stores: Stores,
         *,
         wake: Callable[[], None],
     ) -> None:
         self._sessions = sessions
-        self._blobs = blobs
+        self._stores = stores
         self._wake = wake
 
     async def _doc(self, s: AsyncSession, document_id: uuid.UUID) -> Document:
@@ -141,8 +141,10 @@ class DocumentService:
             doc = await self._doc(s, document_id)
         if not 1 <= page <= doc.page_count:
             raise NotFound(f"No page {page}; the document has {doc.page_count}.")
-        data = await self._blobs.get(key(doc.sha256, page))
+        data = await self._stores.for_kind(doc.kind).get(key(doc.sha256, page))
         if data is None:
+            if doc.kind == "upload" and doc.status == "ready":
+                raise UploadNotKept
             raise NotFound(f"Page {page} is not rendered yet.")
         return data
 
@@ -158,17 +160,20 @@ class DocumentService:
         """Delete a document, its rows (by cascade) and its blobs."""
         async with self._sessions() as s, s.begin():
             doc = await self._doc(s, document_id)
-            sha = doc.sha256
+            sha, store = doc.sha256, self._stores.for_kind(doc.kind)
             await documents.delete(s, doc.id)
-        await self._blobs.delete_prefix(pdf_key(sha))
-        await self._blobs.delete_prefix(pages_prefix(sha))
+        await store.delete_prefix(pdf_key(sha))
+        await store.delete_prefix(pages_prefix(sha))
 
     async def reprocess(self, document_id: uuid.UUID) -> UploadOut:
-        """Queue the pipeline again (an active job is returned as is)."""
+        """Queue the pipeline again (an active job is returned as is); an upload's PDF went when its
+        job ended, so an upload cannot be reprocessed."""
         async with self._sessions() as s, s.begin():
             doc = await self._doc(s, document_id)
             job = await jobs.active_for(s, doc.id)
             if job is None:
+                if await self._stores.for_kind(doc.kind).get(pdf_key(doc.sha256)) is None:
+                    raise UploadNotKept
                 job = await jobs.create(s, doc.id)
                 doc.status = "queued"
                 await s.flush()

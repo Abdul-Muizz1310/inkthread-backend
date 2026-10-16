@@ -29,6 +29,7 @@ def make_settings(database_url: str, tmp_path: Path) -> Callable[..., Settings]:
             "database_url": database_url,
             "llm_mode": "off",
             "blob_root": tmp_path / "blobs",
+            "upload_root": tmp_path / "uploads",
             "uploads_per_hour": 1000,
             "admin_token": ADMIN,
             "metrics_token": METRICS,
@@ -58,6 +59,6 @@ def api(make_settings: Callable[..., Settings]) -> ApiFactory:
             app.router.lifespan_context(app),
             httpx.AsyncClient(transport=transport, base_url="http://test") as client,
         ):
-            yield Api(app=app, client=client, blob_root=s.blob_root)
+            yield Api(app=app, client=client, blob_root=s.blob_root, upload_root=s.upload_root)
 
     return build

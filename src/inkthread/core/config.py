@@ -7,6 +7,7 @@ first request. Secrets are `SecretStr`, so they never print.
 from __future__ import annotations
 
 import os
+import tempfile
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
@@ -27,7 +28,7 @@ class LlmMode(StrEnum):
 
 
 class BlobStoreKind(StrEnum):
-    """Where PDFs, page images and page geometry live (spec 08 § 2)."""
+    """Where samples keep their PDFs, page images and page geometry (spec 08 § 2)."""
 
     LOCAL = "local"
     R2 = "r2"
@@ -60,7 +61,8 @@ class Settings(BaseSettings):
     r2_bucket: str | None = None
     r2_endpoint: str | None = None
     r2_prefix: str = "inkthread/"
-    blob_budget_mb: int = Field(default=300, gt=0)
+    upload_root: Path = Path(tempfile.gettempdir()) / "inkthread-uploads"
+    upload_ttl_minutes: int = Field(default=60, ge=1, le=1440)
 
     openrouter_api_key: SecretStr | None = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
@@ -81,7 +83,6 @@ class Settings(BaseSettings):
     max_pages: int = Field(default=40, gt=0)
     max_queue: int = Field(default=10, gt=0)
     uploads_per_hour: int = Field(default=5, gt=0)
-    retention_days: int = Field(default=7, gt=0)
     job_timeout_s: float = Field(default=900.0, gt=0)
     read_timeout_s: float = Field(default=300.0, gt=0)
     read_memory_limit_mb: int = Field(default=0, ge=0)

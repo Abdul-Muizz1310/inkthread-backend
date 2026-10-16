@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import shutil
 import uuid
 from collections.abc import Callable
 from typing import Any
 
 import pdfs
 import pytest
-from apiharness import ADMIN, ApiFactory, parse_sse
+from apiharness import ApiFactory, parse_sse
 from fake_llm import Reply
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -114,16 +115,15 @@ async def test_replay_gives_the_same_graph_with_zero_requests(
     calls_after_live = await _uncached_calls(sessions)
     assert calls_after_live == len(live.requests)
     replay = TaskModel()
+    shutil.rmtree(a.upload_root / "pages" / first["sha256"])  # a restart lost the upload's files
     async with api(run_jobs=True, model=replay, settings=make_settings(llm_mode="replay")) as a:
-        r = await a.client.post(
-            f"/documents/{first['id']}/reprocess", headers={"x-admin-token": ADMIN}
-        )
+        r = await a.upload(data)  # so the same bytes are processed again (T-PJ-17, T-PJ-18)
         assert r.status_code == 202
         job = await a.wait_job(r.json()["job"]["id"])
         assert job["status"] == "succeeded"
         assert job["llm"]["requests"] == 0
         assert job["llm"]["cached"] == len(live.requests)
-        second_graph = (await a.client.get(f"/documents/{first['id']}/graph")).json()
+        second_graph = (await a.client.get(f"/documents/{job['document_id']}/graph")).json()
     assert replay.requests == []
     assert await _uncached_calls(sessions) == calls_after_live
     assert second_graph["provenance"]["graph_hash"] == first_graph["provenance"]["graph_hash"]

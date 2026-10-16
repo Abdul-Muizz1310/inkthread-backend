@@ -17,6 +17,7 @@ with the field errors in `detail`; an unexpected exception maps to `500 internal
 | 403 | `admin_token_invalid` | a wrong token (constant-time compare) |
 | 404 | `not_found` | unknown document, job, page or element |
 | 409 | `graph_not_ready` | the graph is asked for before the job succeeds |
+| 410 | `upload_not_kept` | an upload's page image or geometry, or reprocessing it, after its files are gone (spec 08 § 2) |
 | 413 | `file_too_large` | over `MAX_UPLOAD_BYTES` |
 | 415 | `not_a_pdf` | no `%PDF-` in the first 1,024 bytes |
 | 422 | `pdf_unreadable`, `pdf_encrypted`, `too_many_pages`, `validation_error` | the PDF cannot be opened, needs a password, or exceeds `MAX_PAGES` |
@@ -118,7 +119,7 @@ Reads:
 Admin:
 - T-API-13 DELETE without a token → 401; with a wrong one → 403; with no `ADMIN_TOKEN` configured
   → 503 `admin_disabled` even with a header; with the right one → 204, and the blobs are gone.
-- T-API-14 Reprocess with the right token → 202 and a new job.
+- T-API-14 Reprocess a sample with the right token → 202 and a new job (an upload → `410`, T-PJ-19).
 
 Events:
 - T-API-15 A finished job's stream replays every event in order, ends with `done` and closes.

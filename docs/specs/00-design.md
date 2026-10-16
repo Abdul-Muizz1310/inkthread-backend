@@ -158,12 +158,13 @@ would have judged (`model_unavailable`). The rules-only graph always ships.
 | queue length | 10 | beyond it, `503 queue_full` |
 | uploads per IP | 5 an hour | the model budget is shared |
 | model calls | 8 per document, and a daily cap below the account's 50 | the free tier |
-| retention | uploads deleted after 7 days; samples kept | privacy and storage |
+| retention | uploads processed, not kept: the PDF goes when its job ends, the results after an hour; samples kept | privacy and storage |
 
 ## 7. Privacy
 
 Document text goes to OpenRouter's free models, whose providers may log prompts. The upload page says
-so, the README says so, and uploads are deleted after seven days. Words that inkgrid marks hidden
+so, the README says so, and uploads are processed, not kept: the PDF is deleted when its job ends, and
+the graph and page images an hour later. Words that inkgrid marks hidden
 (render mode 3, alpha 0) are never sent to a model: a hidden "ignore previous instructions" stays out of
 every prompt. The node keeps its verbatim text and is flagged `hidden_text`.
 

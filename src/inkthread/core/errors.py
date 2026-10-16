@@ -69,6 +69,13 @@ class GraphNotReady(DomainError):
     default_message = "The graph is not ready yet; wait for the job to finish."
 
 
+class UploadNotKept(DomainError):
+    status, code = 410, "upload_not_kept"
+    default_message = (
+        "Uploads are processed, not kept, and this one's files are gone; upload it again."
+    )
+
+
 class FileTooLarge(DomainError):
     status, code = 413, "file_too_large"
     default_message = "The upload is larger than the limit."

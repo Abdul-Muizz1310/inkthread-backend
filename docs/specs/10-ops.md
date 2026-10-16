@@ -14,8 +14,10 @@ once at startup and validated there, so a bad configuration fails the boot, not 
 | `CORS_ORIGINS` | `http://localhost:3000` | comma-separated; `*` is refused in production |
 | `ADMIN_TOKEN` | unset | admin routes answer `503 admin_disabled` while unset |
 | `METRICS_TOKEN` | unset | `/metrics` answers `503` while unset, and otherwise wants `Authorization: Bearer` |
-| `BLOB_STORE` | `local` | `local` or `r2` |
+| `BLOB_STORE` | `local` | where samples keep their files: `local`, `postgres` or `r2` |
 | `BLOB_ROOT` | `./var/blobs` | for `local` |
+| `UPLOAD_ROOT` | `<tmp>/inkthread-uploads` | uploads' transient files (spec 08 § 2) |
+| `UPLOAD_TTL_MINUTES` | `60` | how long an upload's results stay; 1 to 1440 |
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT` | — | required when `BLOB_STORE=r2` |
 | `R2_PREFIX` | `inkthread/` | |
 | `OPENROUTER_API_KEY` | — | required when `LLM_MODE=live` |
@@ -34,7 +36,6 @@ once at startup and validated there, so a bad configuration fails the boot, not 
 | `MAX_PAGES` | `40` | |
 | `MAX_QUEUE` | `10` | |
 | `UPLOADS_PER_HOUR` | `5` | per client IP |
-| `RETENTION_DAYS` | `7` | |
 | `JOB_TIMEOUT_S` | `900` | |
 | `READ_TIMEOUT_S` | `300` | |
 | `READ_MEMORY_LIMIT_MB` | `0` | `0` disables the limit |
@@ -59,7 +60,7 @@ never validated against an allow-list (FeeLedger N-10).
   `alembic upgrade head` when `DATABASE_URL` is set; Render's free plan ignores `preDeployCommand`.
   Then `uvicorn inkthread.main:app --proxy-headers --forwarded-allow-ips "*"`.
 - **Render.** One free web service with `healthCheckPath: /health`. Secrets are `sync: false`. It
-  points at the Neon branch `inkthread` and the R2 prefix `inkthread/`.
+  points at the Neon branch `inkthread`; samples keep their files in Postgres (`BLOB_STORE=postgres`).
 - **Smoke.** The repository variable `SMOKE_BASE_URL`, a bare origin, feeds a push-only CI job that
   probes `/health` and `/samples`. It skips itself when unset.
 

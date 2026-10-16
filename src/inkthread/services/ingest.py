@@ -1,4 +1,4 @@
-"""Upload use case (spec 07 § 2, spec 08 § 4): validate, hash, dedupe, store, enqueue."""
+"""Upload use case (spec 07 § 2, spec 08 § 2, § 4): validate, hash, dedupe, hold, enqueue."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from inkthread.reader import inspect as pdf_inspect
 from inkthread.repositories import documents, jobs
 from inkthread.schemas.documents import DocumentKind, UploadOut
 from inkthread.services.views import document_out, job_out
-from inkthread.storage.blobs import BlobStore
+from inkthread.storage.stores import Stores
 
 PDF_MARKER = b"%PDF-"
 MARKER_WINDOW = 1024
@@ -35,12 +35,17 @@ class IngestLimits:
 
     max_pages: int
     max_queue: int
-    retention_days: int
+    upload_ttl: dt.timedelta
 
 
 def pdf_key(sha256: str) -> str:
     """Where the uploaded bytes live."""
     return f"pdf/{sha256}.pdf"
+
+
+def first_page_key(sha256: str) -> str:
+    """The first page image: present exactly while a ready document's files are."""
+    return f"pages/{sha256}/1.png"
 
 
 async def check_pdf(data: bytes, max_pages: int | None) -> int:
@@ -69,13 +74,13 @@ class IngestService:
     def __init__(
         self,
         sessions: async_sessionmaker[AsyncSession],
-        blobs: BlobStore,
+        stores: Stores,
         *,
         limits: IngestLimits,
         wake: Callable[[], None],
     ) -> None:
         self._sessions = sessions
-        self._blobs = blobs
+        self._stores = stores
         self._limits = limits
         self._wake = wake
 
@@ -102,15 +107,20 @@ class IngestService:
     async def _enqueue(
         self, data: bytes, sha: str, file_name: str | None, pages: int, kind: DocumentKind
     ) -> UploadOut:
+        now = dt.datetime.now(dt.UTC)
         async with self._sessions() as s, s.begin():
             doc = await documents.get_by_sha_for_update(s, sha)
             if doc is not None:
+                store = self._stores.for_kind(doc.kind)
+                if doc.kind == "upload":
+                    doc.expires_at = now + self._limits.upload_ttl
                 active = await jobs.active_for(s, doc.id)
                 if active is not None:
                     return UploadOut(
                         document=document_out(doc, active), job=job_out(active), deduplicated=True
                     )
-                if doc.status == "ready":
+                # A ready upload whose files a restart lost is processed again.
+                if doc.status == "ready" and await store.get(first_page_key(sha)) is not None:
                     latest = await jobs.latest_for(s, doc.id)
                     return UploadOut(
                         document=document_out(doc, latest),
@@ -118,17 +128,13 @@ class IngestService:
                         deduplicated=True,
                     )
                 await self._check_queue(s)
-                await self._blobs.put(pdf_key(sha), data, "application/pdf")
+                await store.put(pdf_key(sha), data, "application/pdf")
                 job = await jobs.create(s, doc.id)
                 doc.status = "queued"
                 await s.flush()
                 return UploadOut(document=document_out(doc, job), job=job_out(job))
             await self._check_queue(s)
-            expires = (
-                dt.datetime.now(dt.UTC) + dt.timedelta(days=self._limits.retention_days)
-                if kind == "upload"
-                else None
-            )
+            expires = now + self._limits.upload_ttl if kind == "upload" else None
             doc = await documents.create(
                 s,
                 sha256=sha,
@@ -138,7 +144,7 @@ class IngestService:
                 kind=kind,
                 expires_at=expires,
             )
-            await self._blobs.put(pdf_key(sha), data, "application/pdf")
+            await self._stores.for_kind(kind).put(pdf_key(sha), data, "application/pdf")
             job = await jobs.create(s, doc.id)
             return UploadOut(document=document_out(doc, job), job=job_out(job))
 

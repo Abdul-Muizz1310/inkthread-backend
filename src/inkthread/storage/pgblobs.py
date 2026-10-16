@@ -27,8 +27,3 @@ class PgBlobStore:
             await repo.delete_prefix(
                 s, check_key(prefix.rstrip("/")) + ("/" if prefix.endswith("/") else "")
             )
-
-    async def total_bytes(self) -> int:
-        """Bytes stored, for the blob budget."""
-        async with self._sessions() as s:
-            return await repo.total_bytes(s)

@@ -33,6 +33,7 @@ from inkthread.services.ingest import pdf_key
 from inkthread.services.llm import AgentFactory, CountingCallLog
 from inkthread.services.views import stats_out
 from inkthread.storage.blobs import BlobStore
+from inkthread.storage.stores import Stores
 
 _log = structlog.get_logger(__name__)
 
@@ -61,6 +62,7 @@ class _Claimed:
     document_id: uuid.UUID
     sha256: str
     file_name: str | None
+    kind: str
 
 
 def _llm_facts(counter: CountingCallLog, rejected: int = 0) -> dict[str, int]:
@@ -83,7 +85,7 @@ class JobRunner:
         self,
         *,
         sessions: async_sessionmaker[AsyncSession],
-        blobs: BlobStore,
+        stores: Stores,
         broadcast: Broadcast,
         agents: AgentFactory,
         reader: Reader,
@@ -93,7 +95,7 @@ class JobRunner:
         max_attempts: int = MAX_ATTEMPTS,
     ) -> None:
         self._sessions = sessions
-        self._blobs = blobs
+        self._stores = stores
         self._broadcast = broadcast
         self._agents = agents
         self._reader = reader
@@ -153,7 +155,12 @@ class JobRunner:
             return False
         log = _log.bind(job_id=str(claimed.job_id), document_id=str(claimed.document_id))
         log.info("job_started")
-        await self._run(claimed)
+        store = self._stores.for_kind(claimed.kind)
+        try:
+            await self._run(claimed, store)
+        finally:
+            if claimed.kind == "upload":  # processed, not kept (spec 08 § 2)
+                await store.delete_prefix(pdf_key(claimed.sha256))
         log.info("job_finished")
         return True
 
@@ -166,9 +173,9 @@ class JobRunner:
             if doc is None:  # pragma: no cover - the foreign key cascades jobs with documents
                 return None
             doc.status = "processing"
-            return _Claimed(job.id, doc.id, doc.sha256, doc.file_name)
+            return _Claimed(job.id, doc.id, doc.sha256, doc.file_name, doc.kind)
 
-    async def _run(self, c: _Claimed) -> None:
+    async def _run(self, c: _Claimed, store: BlobStore) -> None:
         base = self._agents(c.job_id)
         counter = CountingCallLog(base.log)
         deps = PipelineDeps(
@@ -177,9 +184,10 @@ class JobRunner:
             inkgrid_version=self._inkgrid_version,
         )
         seen: list[StageRun] = []
-        pdf = await self._blobs.get(pdf_key(c.sha256))
+        pdf = await store.get(pdf_key(c.sha256))
         if pdf is None:
-            await self._fail(c, "pdf_missing", "the uploaded PDF is no longer stored", seen)
+            message = "the upload was not kept across a restart; upload it again"
+            await self._fail(c, "pdf_missing", message, seen)
             return
         outcome: PipelineResult | PipelineFailure | None = None
         stream = run_pipeline(pdf, c.file_name, deps)
@@ -211,7 +219,7 @@ class JobRunner:
             if isinstance(stream, AsyncGenerator):
                 await stream.aclose()
         if isinstance(outcome, PipelineResult):
-            await self._succeed(c, outcome, counter)
+            await self._succeed(c, outcome, counter, store)
         elif isinstance(outcome, PipelineFailure):
             await self._fail(c, outcome.code, outcome.message, outcome.stages, counter)
         else:  # pragma: no cover - run_pipeline always ends with one outcome
@@ -235,18 +243,21 @@ class JobRunner:
             )
         self._broadcast.publish(job_id, StreamEvent(seq, name, data))
 
-    async def _succeed(self, c: _Claimed, result: PipelineResult, counter: CountingCallLog) -> None:
+    async def _succeed(
+        self, c: _Claimed, result: PipelineResult, counter: CountingCallLog, store: BlobStore
+    ) -> None:
         graph = result.final.graph
         sha = c.sha256
-        for n, png in enumerate(result.pngs, start=1):
-            await self._blobs.put(page_png_key(sha, n), png, "image/png")
+        # Geometry first and page 1's image last: page 1 marks a ready document's files present.
         for page in range(1, graph.document.page_count + 1):
             words = [
                 {"node": w.node, "start": w.start, "end": w.end, "bbox": list(w.bbox)}
                 for w in result.geometry.get(page, [])
             ]
             body = json.dumps(words, separators=(",", ":")).encode()
-            await self._blobs.put(page_geometry_key(sha, page), body, "application/json")
+            await store.put(page_geometry_key(sha, page), body, "application/json")
+        for n, png in reversed(list(enumerate(result.pngs, start=1))):
+            await store.put(page_png_key(sha, n), png, "image/png")
         stats = stats_out(graph.stats.model_dump(mode="json"))
         llm = _llm_facts(counter, sum(r.rejected for r in result.reports.values()))
         done: EventData = {

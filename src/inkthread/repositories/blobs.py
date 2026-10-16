@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,8 +32,3 @@ async def delete_prefix(s: AsyncSession, prefix: str) -> None:
     """Delete every blob whose key starts with `prefix` (LIKE wildcards escaped)."""
     escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     await s.execute(delete(BlobRow).where(BlobRow.key.like(escaped + "%", escape="\\")))
-
-
-async def total_bytes(s: AsyncSession) -> int:
-    """All blob bytes stored."""
-    return int((await s.execute(select(func.coalesce(func.sum(BlobRow.size), 0)))).scalar_one())

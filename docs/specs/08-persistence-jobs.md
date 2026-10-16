@@ -17,15 +17,23 @@ Every timestamp is `timestamptz` (a parity test checks ORM and migration agree; 
 The engine uses `pool_pre_ping=True` and `pool_recycle=300`, and normalises Neon URLs (`postgres://`
 → `postgresql+asyncpg://`, `sslmode=require` → `ssl=require`, `channel_binding` dropped).
 
-## 2. Blobs
+## 2. Files: samples are kept, uploads are processed
 
 `BlobStore` port: `put(key, data, content_type)`, `get(key) → bytes | None`, `delete_prefix(prefix)`.
-Adapters: `LocalBlobStore(root)` for development and tests, `R2BlobStore` (S3 API via boto3 in a
-worker thread, under `R2_PREFIX`), and `PgBlobStore` (rows of a `blobs` table, migration `0002`).
-Production runs on `PgBlobStore` since 2026-10-14, when the portfolio's R2 credentials answered
-`Unauthorized`; R2 returns by setting `BLOB_STORE=r2` once they are replaced. Under `PgBlobStore`
-the retention sweep also enforces `BLOB_BUDGET_MB` (300): past it, the oldest uploads go first, and
-samples are never evicted (Neon's free branch holds 0.5 GB). Keys are content-addressed by the PDF's sha256:
+Adapters: `LocalBlobStore(root)`, `R2BlobStore` (S3 API via boto3 in a worker thread, under
+`R2_PREFIX`), and `PgBlobStore` (rows of a `blobs` table, migration `0002`).
+
+Samples and uploads never share a store (`Stores.for_kind`):
+- **Samples** keep their files in the durable store `BLOB_STORE` names. Production runs on
+  `PgBlobStore`: the two samples and their page images come to 21 MB, and they never expire.
+- **Uploads** are processed, not kept. Their files go to `UPLOAD_ROOT`, a `LocalBlobStore` on the
+  instance's own temporary disk, and never to the durable store:
+  - the PDF stays only until its job ends, whether it succeeds or fails;
+  - the page images and geometry stay until the upload expires, `UPLOAD_TTL_MINUTES` (60) after it was
+    created or last deduplicated.
+  A restart loses an upload's files, and the sweep (§ 4) then deletes its rows.
+
+Keys are content-addressed by the PDF's sha256:
 
 | key | what |
 |---|---|
@@ -68,8 +76,16 @@ The runner sleeps on an event that an upload sets, and polls every 5 s. A whole 
 **Reaper.** At startup, a `running` job left by a crash goes back to `queued` with `attempt + 1`, or to
 `failed` with `interrupted` once `attempt` reaches 2.
 
-**Retention.** Every hour, uploads whose `expires_at` (created + `RETENTION_DAYS`, 7) has passed are
-deleted with their blobs. Samples never expire.
+**Sweep.** At startup and every 5 minutes, the sweep deletes, with their rows and files:
+- uploads whose `expires_at` has passed;
+- ready uploads whose first page image is missing from this instance's upload store (a restart lost it).
+
+Samples are never swept.
+
+**Uploads after the fact.** An upload of bytes already held as a ready upload is deduplicated and its
+`expires_at` moves to now + `UPLOAD_TTL_MINUTES`; if its page images are gone, it is processed again
+instead. A page image or geometry missing for an upload answers `410 upload_not_kept`, and so does
+reprocessing an upload whose PDF is gone. A queued job whose PDF is gone fails `pdf_missing`.
 
 ## 5. Samples
 
@@ -90,7 +106,8 @@ Integration (Postgres via Testcontainers):
 - T-PJ-4 Event `seq` is unique per job; appending reads back in order.
 - T-PJ-5 The daily request count includes only today's uncached attempts (UTC).
 - T-PJ-6 The reaper requeues a running job once, then fails it as `interrupted`.
-- T-PJ-7 Retention deletes expired uploads and their blobs, and keeps samples and unexpired uploads.
+- T-PJ-7 The sweep deletes expired uploads with their rows and files, and keeps samples and unexpired
+  uploads.
 
 Reader (real child process, synthetic PDFs):
 - T-PJ-8 A two-page PDF comes back with a document, a report and two PNGs.
@@ -107,3 +124,14 @@ Composed (the whole flow, CI-mandatory):
 - T-PJ-13 The same upload replayed from recorded answers yields the same `graph_hash` with zero model
   requests (G7).
 - T-PJ-14 Blob stores: local and a fake S3 both round-trip `put`/`get` and delete by prefix.
+
+Uploads are processed, not kept (§ 2):
+- T-PJ-15 An upload's PDF, page images and geometry go to the upload store and never to the durable
+  store; a sample's go to the durable store and never to the upload store.
+- T-PJ-16 After an upload's job succeeds or fails, its PDF is gone; its page images and geometry stay.
+- T-PJ-17 The sweep deletes a ready upload whose first page image is gone, and keeps a ready upload
+  whose images are present and a sample whose images are absent.
+- T-PJ-18 Uploading the same bytes again moves a ready upload's `expires_at` forward; when its page
+  images are gone, it is queued again instead.
+- T-PJ-19 A page image of an upload whose files are gone → `410 upload_not_kept`; reprocessing an
+  upload whose PDF is gone → `410 upload_not_kept`.

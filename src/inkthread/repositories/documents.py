@@ -88,10 +88,12 @@ async def expired_uploads(s: AsyncSession, now: dt.datetime) -> list[Document]:
     return list(rows.scalars())
 
 
-async def uploads_oldest_first(s: AsyncSession) -> list[Document]:
-    """Uploads (never samples), oldest first: the blob budget's eviction order."""
+async def ready_uploads(s: AsyncSession) -> list[Document]:
+    """Ready uploads (never samples), oldest first: the sweep checks their files are still here."""
     rows = await s.execute(
-        select(Document).where(Document.kind == "upload").order_by(Document.created_at, Document.id)
+        select(Document)
+        .where(Document.kind == "upload", Document.status == "ready")
+        .order_by(Document.created_at, Document.id)
     )
     return list(rows.scalars())
 

@@ -27,6 +27,7 @@ class Api:
     app: Any
     client: httpx.AsyncClient
     blob_root: Path
+    upload_root: Path
 
     async def upload(
         self, data: bytes, name: str = "doc.pdf", *, ip: str | None = None

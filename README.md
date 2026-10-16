@@ -87,7 +87,7 @@ src/inkthread/
 ├── llm/           OpenRouter client, cascade, budget, request keys
 ├── agents/        grounding, prompts/*.md, classify, relate, verify
 ├── pipeline/      the LangGraph state graph
-├── services/      ingest, job runner, broadcast, streams, retention, samples
+├── services/      ingest, job runner, broadcast, streams, sweep, samples
 ├── repositories/  SQL; models/ ORM; schemas/ DTOs; api/ routers + SSE
 └── core/, platform/, storage/   config, errors, logging, health, blobs
 docs/specs/        00-design … 10-ops, each with its enumerated test cases
@@ -129,7 +129,7 @@ Configuration is in [`.env.example`](.env.example) and [spec 10](docs/specs/10-o
 | LLM | OpenRouter `:free` cascade, strict JSON schema, recorded answers |
 | API | FastAPI 0.143, sse-starlette, Pydantic v2 |
 | Data | SQLAlchemy 2.1 async + asyncpg, Alembic, Neon Postgres |
-| Blobs | local disk or Cloudflare R2 |
+| Files | samples in Postgres (or disk, or R2); uploads on the instance's temporary disk for an hour |
 | Quality | Ruff, mypy `--strict`, pytest, Hypothesis, respx, Testcontainers |
 
 ---
@@ -166,7 +166,8 @@ uv run pytest -m integration         # needs Docker
 - Free models are slow, flaky and budget-bound (50 requests a day per account); past the quota a graph
   is rules-only, with the skipped stages named.
 - Rules can over-link capitalised common words defined as terms.
-- Text goes to OpenRouter's free providers, which may log it; uploads are deleted after seven days.
+- Uploads are processed, not kept: the PDF is deleted when its job ends, and the graph and page images
+  an hour later (or at the next restart). Text does go to OpenRouter's free providers, which may log it.
 
 ---
 

@@ -30,7 +30,8 @@ def test_defaults_match_the_spec() -> None:
     assert s.max_pages == 40
     assert s.max_queue == 10
     assert s.uploads_per_hour == 5
-    assert s.retention_days == 7
+    assert s.upload_ttl_minutes == 60
+    assert s.upload_root.name == "inkthread-uploads"
     assert s.r2_prefix == "inkthread/"
 
 
@@ -108,3 +109,9 @@ def test_commit_sha_falls_back(
     for name, value in env.items():
         monkeypatch.setenv(name, value)
     assert make().commit_sha == expected
+
+
+@pytest.mark.parametrize("minutes", [0, 1441])
+def test_refuses_an_upload_ttl_outside_a_day(minutes: int) -> None:
+    with pytest.raises(ValidationError):
+        make(upload_ttl_minutes=minutes)
