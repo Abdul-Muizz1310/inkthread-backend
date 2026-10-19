@@ -59,7 +59,7 @@ bytes and no page images. An upload's reading goes with its document when the up
   was processed before readings were kept (until it is reprocessed).
 - During a reprocess the previous reading is served, as the graph is.
 - `Cache-Control: public, max-age=300`, as the graph.
-- Protected exactly as the graph is (platform contract v2 on the `contract-v2` branch).
+- Protected exactly as the graph is: it needs a platform token (spec 12).
 
 ## 3. Samples replay
 

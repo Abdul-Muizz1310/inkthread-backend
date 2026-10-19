@@ -14,16 +14,16 @@
 ---
 
 ```console
-$ curl -F file=@fee-schedule.pdf $API/documents
+$ curl -H "X-Platform-Token: $TOKEN" -F file=@fee-schedule.pdf $API/documents
 {"document": {"id": "…", "status": "queued"}, "job": {"id": "…"}}
 
-$ curl -N $API/jobs/<job>/events
+$ curl -N -H "X-Platform-Token: $TOKEN" $API/jobs/<job>/events
 event: stage   data: {"stage": "read", "status": "completed", "ms": 27400}
 event: delta   data: {"stage": "structure", "nodes": [...], "edges": [...]}
 event: llm     data: {"task": "A-classify", "model": "nvidia/nemotron-3-super-120b-a12b:free", "ok": true}
 event: done    data: {"graph_hash": "…", "stats": {"nodes": 46, "edges": 59}}
 
-$ curl $API/documents/<doc>/graph.cypher > graph.cypher   # straight into Neo4j
+$ curl -H "X-Platform-Token: $TOKEN" $API/documents/<doc>/graph.cypher > graph.cypher   # into Neo4j
 ```
 
 ---
@@ -52,6 +52,7 @@ text: a quote they give counts only when it snaps to the page's own words.
 - 🧾 **Explain gate** — a hash-chained op log must account for every node, role and thread before a graph is stored
 - 🔁 **Byte-identical replay** — recorded model answers by request key; the same PDF gives the same `graph_hash` with zero calls
 - 📡 **Live build** — SSE `stage` / `delta` / `llm` events, resumable with `Last-Event-ID`; the event log replays the build any time later
+- 🔐 **Platform token** — Ed25519 tokens from bastion or the frontend's proxy, `aud`-bound to inkthread, 10 s leeway; fail closed without a key
 - 📤 **Exports** — JSON, JSON-LD (DoCO, SKOS, PROV-O, Web Annotation), GraphML, Cypher
 - 📑 **The reading** — inkgrid's tables (dense rows and Markdown) and its PDFium verification summary, kept per document
 
@@ -103,6 +104,7 @@ samples/           public-domain PDFs + recorded model answers
 uv sync
 docker run -d -e POSTGRES_PASSWORD=dev -p 55432:5432 postgres:17-alpine
 export DATABASE_URL=postgresql://postgres:dev@localhost:55432/postgres LLM_MODE=replay
+export APP_ENV=test                  # no platform keys locally: requests pass without a token
 uv run alembic upgrade head
 uv run inkthread seed                # samples, replayed from samples/answers with zero calls
 uv run uvicorn inkthread.main:app    # http://localhost:8000/docs
@@ -117,6 +119,11 @@ uv run uvicorn inkthread.main:app    # http://localhost:8000/docs
 | `GET /documents/{id}/why/{element}` | the rule or model behind any node, role or thread |
 | `GET /documents/{id}/reading` | inkgrid's tables (rows, Markdown) and its second-engine verification summary |
 | `GET /samples`, `/health`, `/version`, `/metrics` | samples and operations |
+
+Every route except `/health`, `/version`, `/docs`, `/redoc`, `/openapi.json` and `/metrics` (its own
+bearer) needs an `X-Platform-Token`: a 60-second Ed25519 JWT from bastion or from inkthread-frontend's
+server, with `aud: "inkthread"` ([spec 12](docs/specs/12-platform-token.md)). With no key configured,
+protected routes answer `503` outside `APP_ENV=test`.
 
 Configuration is in [`.env.example`](.env.example) and [spec 10](docs/specs/10-ops.md).
 

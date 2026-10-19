@@ -28,6 +28,7 @@ from inkthread.llm.catalog import ModelCatalog
 from inkthread.llm.client import OpenRouterModel
 from inkthread.llm.ports import BudgetPort, ModelPort
 from inkthread.pipeline.graph import Reader
+from inkthread.platform.keys import KeyResolver
 from inkthread.platform.setup import install_platform
 from inkthread.reader.process import ReadOutcome, read_in_child
 from inkthread.services.broadcast import Broadcast
@@ -191,7 +192,17 @@ def create_app(
     install_error_handlers(app)
     for module in (documents, jobs, samples, admin):
         app.include_router(module.router)
-    install_platform(app, cors_origins=cfg.cors_origins)
+    install_platform(
+        app,
+        cors_origins=cfg.cors_origins,
+        keys=KeyResolver(
+            bastion=cfg.bastion_signing_key_public,
+            bastion_url=cfg.bastion_public_key_url,
+            frontend=cfg.inkthread_frontend_signing_key_public,
+        ),
+        demo_mode=cfg.demo_mode,
+        enforce_unconfigured=cfg.app_env != "test",
+    )
     return app
 
 

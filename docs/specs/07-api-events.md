@@ -13,6 +13,7 @@ with the field errors in `detail`; an unexpected exception maps to `500 internal
 | status | code | when |
 |---|---|---|
 | 400 | `empty_file` | the upload has no bytes |
+| 401 | `missing_platform_token`, `invalid_platform_token` | a protected route without a platform token, or with one that fails a check (spec 12) |
 | 401 | `admin_token_required` | an admin route without `X-Admin-Token` |
 | 403 | `admin_token_invalid` | a wrong token (constant-time compare) |
 | 404 | `not_found` | unknown document, job, page or element |
@@ -22,7 +23,7 @@ with the field errors in `detail`; an unexpected exception maps to `500 internal
 | 415 | `not_a_pdf` | no `%PDF-` in the first 1,024 bytes |
 | 422 | `pdf_unreadable`, `pdf_encrypted`, `too_many_pages`, `validation_error` | the PDF cannot be opened, needs a password, or exceeds `MAX_PAGES` |
 | 429 | `rate_limited` | over the upload rate; `Retry-After` set |
-| 503 | `queue_full`, `admin_disabled`, `service_unavailable` | the queue is full; no admin token is configured (admin routes fail closed); the database is down |
+| 503 | `queue_full`, `admin_disabled`, `service_unavailable`, `platform_auth_unconfigured` | the queue is full; no admin token is configured (admin routes fail closed); the database is down; no platform key is configured (spec 12) |
 
 ## 2. Routes
 
@@ -89,10 +90,12 @@ sent. A stream lasts at most 10 minutes; the client reconnects with `Last-Event-
   off without being read whole.
 - `%PDF-` must appear in the first 1,024 bytes.
 - Page count and encryption are read with pypdfium2 in a worker thread, behind one process-wide lock.
-- 5 uploads per client IP per hour, a sliding window in memory (one instance).
+- 5 uploads per caller per hour, a sliding window in memory (one instance): per `iss:sub` for a
+  token's caller, else per client IP (spec 12).
 - `X-Request-Id` is echoed or generated on every response.
 - CORS allows `CORS_ORIGINS` only, with methods GET, POST, DELETE and OPTIONS. It allows the request
-  headers `content-type`, `x-admin-token` and `last-event-id`, and exposes `location`, `etag`,
+  headers `content-type`, `x-admin-token`, `last-event-id`, `x-platform-token` and `x-request-id`,
+  and exposes `location`, `etag`,
   `retry-after` and `x-request-id`.
 
 ## 5. Test cases
@@ -104,7 +107,8 @@ Upload:
 - T-API-4 Empty file → 400 `empty_file`; a PNG → 415 `not_a_pdf`; 16 MB → 413 `file_too_large`
   without reading the whole body; an encrypted PDF → 422 `pdf_encrypted`; 41 pages → 422
   `too_many_pages`; truncated bytes after `%PDF-` → 422 `pdf_unreadable`.
-- T-API-5 The sixth upload from one IP within an hour → 429 with `Retry-After`; another IP is not
+- T-API-5 The sixth upload from one IP (or one token subject, spec 12 T-PT-14) within an hour → 429
+  with `Retry-After`; another IP is not
   limited.
 - T-API-6 With 10 jobs queued, the next upload → 503 `queue_full`.
 
