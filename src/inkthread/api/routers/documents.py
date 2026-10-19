@@ -14,6 +14,7 @@ from inkthread.core.errors import RateLimited
 from inkthread.domain.why import Why
 from inkthread.schemas.documents import DocumentOut, GeometryWord, UploadOut
 from inkthread.schemas.platform import ErrorOut
+from inkthread.schemas.readings import ReadingOut
 
 router = APIRouter(tags=["documents"])
 
@@ -65,6 +66,14 @@ async def get_graph(
     if if_none_match is not None and etag in {t.strip() for t in if_none_match.split(",")}:
         return Response(status_code=304, headers=headers)
     return Response(payload.body, media_type="application/json", headers=headers)
+
+
+@router.get("/documents/{document_id}/reading", response_model=ReadingOut, responses=ERRORS)
+async def get_reading(
+    document_id: uuid.UUID, services: ServicesDep, response: Response
+) -> ReadingOut:
+    response.headers["Cache-Control"] = GRAPH_CACHE
+    return await services.documents.reading(document_id)
 
 
 @router.get("/documents/{document_id}/graph.{fmt}", responses=ERRORS)

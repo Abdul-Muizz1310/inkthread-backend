@@ -10,9 +10,11 @@ from typing import Literal
 import inkgrid
 from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
+from inkthread.domain.digest import ReadingDigest
 from inkthread.domain.reading import Reading
 from inkthread.reader.adapt import adapt
 from inkthread.reader.child import run_child
+from inkthread.reader.digest import digest
 
 FailureCode = Literal[
     "pdf_encrypted", "pdf_unreadable", "reader_failed", "read_timeout", "no_text_layer"
@@ -23,10 +25,11 @@ _JOIN_S = 5.0
 
 @dataclass(frozen=True, slots=True)
 class ReadSuccess:
-    """The reading, and one PNG per page rendered at 2x."""
+    """The reading, one PNG per page rendered at 2x, and what spec 11 keeps of the reading."""
 
     reading: Reading
     pngs: list[bytes]
+    digest: ReadingDigest
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +106,7 @@ def _outcome(ok: _ChildOk) -> ReadOutcome:
     reading = adapt(doc, report)
     if not any(b.kind != "furniture" for b in reading.blocks):
         return ReadFailure("no_text_layer", "the PDF has no text layer; inkthread does not OCR")
-    return ReadSuccess(reading=reading, pngs=ok.pngs)
+    return ReadSuccess(reading=reading, pngs=ok.pngs, digest=digest(doc, report))
 
 
 async def read_in_child(pdf: bytes, *, timeout_s: float, memory_limit_mb: int = 0) -> ReadOutcome:

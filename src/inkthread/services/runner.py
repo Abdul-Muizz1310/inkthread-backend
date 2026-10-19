@@ -18,6 +18,7 @@ from typing import Any
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from inkthread.domain.digest import link_tables
 from inkthread.domain.finalize import ExplainFailed
 from inkthread.pipeline.graph import (
     PipelineDeps,
@@ -27,7 +28,7 @@ from inkthread.pipeline.graph import (
     StageRun,
     run_pipeline,
 )
-from inkthread.repositories import documents, events, graphs, jobs
+from inkthread.repositories import documents, events, graphs, jobs, readings
 from inkthread.services.broadcast import Broadcast, EventData, StreamEvent
 from inkthread.services.ingest import pdf_key
 from inkthread.services.llm import AgentFactory, CountingCallLog
@@ -272,6 +273,14 @@ class JobRunner:
                 graph=graph.model_dump(mode="json", by_alias=True),
                 graph_hash=graph.provenance.graph_hash,
                 ops=[op.model_dump(mode="json") for op in result.final.ops],
+            )
+            await readings.save(
+                s,
+                c.document_id,
+                inkgrid_version=result.digest.inkgrid_version,
+                verification=result.digest.verification.model_dump(mode="json"),
+                tables=[t.model_dump(mode="json") for t in link_tables(result.digest, graph)],
+                findings=[f.model_dump(mode="json") for f in result.digest.findings],
             )
             await documents.set_status(s, c.document_id, "ready", title=graph.document.title)
             await jobs.finish(

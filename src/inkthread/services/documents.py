@@ -17,9 +17,10 @@ from inkthread.domain.model import Graph
 from inkthread.domain.ops import Op
 from inkthread.domain.why import Why, why
 from inkthread.models import Document
-from inkthread.repositories import documents, graphs, jobs
+from inkthread.repositories import documents, graphs, jobs, readings
 from inkthread.schemas.documents import DocumentOut, GeometryWord, UploadOut
 from inkthread.schemas.jobs import JobOut
+from inkthread.schemas.readings import ReadingOut
 from inkthread.services.ingest import pdf_key
 from inkthread.services.runner import page_geometry_key, page_png_key, pages_prefix
 from inkthread.services.views import document_out, job_out
@@ -115,6 +116,24 @@ class DocumentService:
             raise GraphNotReady
         body = json.dumps(row.graph, ensure_ascii=False, separators=(",", ":")).encode()
         return GraphPayload(graph_hash=row.graph_hash, body=body)
+
+    async def reading(self, document_id: uuid.UUID) -> ReadingOut:
+        """What inkgrid read (spec 11 § 2); `GraphNotReady` until a job has stored one."""
+        async with self._sessions() as s:
+            doc = await self._doc(s, document_id)
+            row = await readings.get(s, document_id)
+        if row is None:
+            raise GraphNotReady
+        return ReadingOut.model_validate(
+            {
+                "document_id": doc.id,
+                "doc_sha256": doc.sha256,
+                "inkgrid_version": row.inkgrid_version,
+                "verification": row.verification,
+                "tables": row.tables,
+                "findings": row.findings,
+            }
+        )
 
     async def export(self, document_id: uuid.UUID, fmt: str) -> Export:
         """An export (spec 09); an unknown format is `NotFound`."""

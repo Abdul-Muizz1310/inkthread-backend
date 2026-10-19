@@ -10,6 +10,7 @@
 | `graphs` | `document_id uuid pk`, `schema_version text`, `graph_hash char(64)`, `graph jsonb`, `ops jsonb`, `created_at` | fk → documents `on delete cascade` |
 | `llm_calls` | `id bigserial pk`, `job_id uuid null`, `task text`, `model text null`, `request_key char(64)`, `cached bool`, `status text`, `http_status int null`, `latency_ms int`, `prompt_tokens int null`, `completion_tokens int null`, `created_at` | fk → jobs `on delete set null`; index `(created_at)` |
 | `llm_responses` | `request_key char(64) pk`, `task text`, `served_model text`, `response jsonb`, `created_at` | — |
+| `readings` | `document_id uuid pk`, `schema_version text`, `inkgrid_version text`, `verification jsonb`, `tables jsonb`, `findings jsonb`, `created_at` | fk → documents `on delete cascade`; migration `0003`, spec 11 |
 
 Every timestamp is `timestamptz` (a parity test checks ORM and migration agree; see
 `lesson-sqlite-hides-postgres-defects`). Tests run against real Postgres (Testcontainers), never SQLite.
@@ -65,7 +66,7 @@ the PDF is blank) fails the job with `no_text_layer`, because inkthread does not
    'queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING …`, so two instances can
    never claim one job.
 2. It runs the pipeline and, for every event, appends a `job_events` row and then broadcasts it.
-3. On success it writes `graphs` and the geometry blobs, sets the document `ready` and the job
+3. On success it writes `graphs`, `readings` (spec 11) and the geometry blobs, sets the document `ready` and the job
    `succeeded`, then emits `done`. The job row records per-stage timings, the reasons for any skipped
    stages, and model request counts.
 4. On failure it records the error code, sets both rows `failed`, and emits `failed`.

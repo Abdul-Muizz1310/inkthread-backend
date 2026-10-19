@@ -10,7 +10,7 @@ from typing import Any
 import pdfs
 import pytest
 from apiharness import ApiFactory, parse_sse
-from fake_llm import Reply
+from fake_llm import TaskModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -18,31 +18,11 @@ from inkthread.core.config import Settings
 from inkthread.domain.explain import explain
 from inkthread.domain.model import Graph
 from inkthread.domain.ops import Op
-from inkthread.llm.ports import Attempt, ModelRequest, ModelResult, Usage
 from inkthread.models import LlmCall
 from inkthread.reader.adapt import adapt
 from inkthread.repositories import graphs
 
 pytestmark = pytest.mark.integration
-
-EMPTY_ANSWERS = {
-    "classify": '{"labels": []}',
-    "relate": '{"relations": []}',
-    "verify": '{"verdicts": []}',
-}
-
-
-class TaskModel:
-    """A model that gives each task a valid, empty answer, and counts the requests."""
-
-    def __init__(self) -> None:
-        self.requests: list[ModelRequest] = []
-
-    async def complete(self, req: ModelRequest) -> ModelResult:
-        self.requests.append(req)
-        reply = Reply(EMPTY_ANSWERS[req.task], served_model=req.cascade[0])
-        attempt = Attempt(reply.served_model, "ok", 200, 1, 10, 5)
-        return ModelResult(reply.text, reply.served_model, "stop", Usage(10, 5), (attempt,))
 
 
 async def test_upload_to_graph_end_to_end(

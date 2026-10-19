@@ -36,6 +36,7 @@ with the field errors in `detail`; an unexpected exception maps to `500 internal
 | `GET /documents/{id}/pages/{n}.png` | the rendered page | `200 image/png`, `Cache-Control: public, max-age=31536000, immutable` |
 | `GET /documents/{id}/pages/{n}/geometry` | the page's word geometry (spec 02 § 9) | `200 [{node, start, end, bbox}]`, immutable cache |
 | `GET /documents/{id}/why/{element_id}` | attribution (spec 06 § 6) | `200 Why` |
+| `GET /documents/{id}/reading` | inkgrid's tables and verification summary (spec 11) | `200 inkthread.reading/1`, `Cache-Control: public, max-age=300`; `409` until a job stored one |
 | `GET /jobs/{id}` | job status | `200 JobOut` |
 | `GET /jobs/{id}/events` | the event stream (§ 3) | `200 text/event-stream` |
 | `DELETE /documents/{id}` | admin: delete a document and its blobs | `204` |

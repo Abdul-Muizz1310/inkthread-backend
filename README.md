@@ -53,6 +53,7 @@ text: a quote they give counts only when it snaps to the page's own words.
 - 🔁 **Byte-identical replay** — recorded model answers by request key; the same PDF gives the same `graph_hash` with zero calls
 - 📡 **Live build** — SSE `stage` / `delta` / `llm` events, resumable with `Last-Event-ID`; the event log replays the build any time later
 - 📤 **Exports** — JSON, JSON-LD (DoCO, SKOS, PROV-O, Web Annotation), GraphML, Cypher
+- 📑 **The reading** — inkgrid's tables (dense rows and Markdown) and its PDFium verification summary, kept per document
 
 ---
 
@@ -114,6 +115,7 @@ uv run uvicorn inkthread.main:app    # http://localhost:8000/docs
 | `GET /documents/{id}/graph` (`.jsonld`, `.graphml`, `.cypher`) | the graph and its exports |
 | `GET /documents/{id}/pages/{n}.png`, `/pages/{n}/geometry` | page images and word geometry |
 | `GET /documents/{id}/why/{element}` | the rule or model behind any node, role or thread |
+| `GET /documents/{id}/reading` | inkgrid's tables (rows, Markdown) and its second-engine verification summary |
 | `GET /samples`, `/health`, `/version`, `/metrics` | samples and operations |
 
 Configuration is in [`.env.example`](.env.example) and [spec 10](docs/specs/10-ops.md).
@@ -124,7 +126,7 @@ Configuration is in [`.env.example`](.env.example) and [spec 10](docs/specs/10-o
 
 | Concern | Choice |
 |---|---|
-| PDF reading | inkgrid 0.1 (PyMuPDF, Camelot, PDFium verifier), in a spawned child process |
+| PDF reading | inkgrid 0.2 (PyMuPDF, Camelot, PDFium verifier), in a spawned child process |
 | Pipeline | LangGraph 1.2, no checkpointer (the job row and event log are durable) |
 | LLM | OpenRouter `:free` cascade, strict JSON schema, recorded answers |
 | API | FastAPI 0.143, sse-starlette, Pydantic v2 |
@@ -138,7 +140,7 @@ Configuration is in [`.env.example`](.env.example) and [spec 10](docs/specs/10-o
 
 | Metric | Value |
 |---|---|
-| Tests | 450+ (unit, property and integration) |
+| Tests | 500 (unit, property and integration) |
 | Integration | real Postgres (Testcontainers), the real reader child process, the composed upload → graph flow |
 | Property tests | Hypothesis: spans, ids, section-tree invariants, partition, grounding |
 

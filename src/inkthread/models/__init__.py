@@ -118,6 +118,22 @@ class GraphRow(Base):
     created_at: Mapped[dt.datetime] = mapped_column(TS, default=_now, server_default=func.now())
 
 
+class ReadingRow(Base):
+    """What spec 11 keeps of a document's inkgrid reading: tables and the verification summary."""
+
+    __tablename__ = "readings"
+
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True
+    )
+    schema_version: Mapped[str] = mapped_column(String(32))
+    inkgrid_version: Mapped[str] = mapped_column(String(32))
+    verification: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    tables: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    findings: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    created_at: Mapped[dt.datetime] = mapped_column(TS, default=_now, server_default=func.now())
+
+
 class LlmCall(Base):
     """One model attempt or cache hit (convention-llm-usage: every call is traced)."""
 

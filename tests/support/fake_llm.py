@@ -126,3 +126,23 @@ class CountingBudget:
 
     def spent(self) -> int:
         return self.used
+
+
+EMPTY_ANSWERS = {
+    "classify": '{"labels": []}',
+    "relate": '{"relations": []}',
+    "verify": '{"verdicts": []}',
+}
+
+
+class TaskModel:
+    """A model that gives each task a valid, empty answer, and counts the requests."""
+
+    def __init__(self) -> None:
+        self.requests: list[ModelRequest] = []
+
+    async def complete(self, req: ModelRequest) -> ModelResult:
+        self.requests.append(req)
+        reply = Reply(EMPTY_ANSWERS[req.task], served_model=req.cascade[0])
+        attempt = Attempt(reply.served_model, "ok", 200, 1, 10, 5)
+        return ModelResult(reply.text, reply.served_model, "stop", Usage(10, 5), (attempt,))

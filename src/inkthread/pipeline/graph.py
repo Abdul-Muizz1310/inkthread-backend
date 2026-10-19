@@ -25,6 +25,7 @@ from inkthread.agents.relate import relate_agent
 from inkthread.agents.verify import verify_agent
 from inkthread.domain.classify.residual import residual
 from inkthread.domain.classify.rules import classify
+from inkthread.domain.digest import ReadingDigest
 from inkthread.domain.draft import GraphDraft
 from inkthread.domain.finalize import FinalGraph, finalize
 from inkthread.domain.link.build import link_rules
@@ -58,6 +59,7 @@ class PipelineResult:
     geometry: dict[int, list[GeomWord]]
     stages: list[StageRun]
     reports: dict[str, AgentReport]
+    digest: ReadingDigest
 
 
 @dataclass
@@ -76,6 +78,7 @@ class State(TypedDict, total=False):
     file_name: str | None
     reading: Reading
     pngs: list[bytes]
+    digest: ReadingDigest
     draft: GraphDraft
     structure: StructureResult
     failure: ReadFailure
@@ -171,7 +174,13 @@ def build_pipeline(deps: PipelineDeps) -> Any:  # noqa: ANN401, PLR0915 - LangGr
             _ms(start),
             counts={"pages": len(reading.pages), "blocks": len(reading.blocks)},
         )
-        return {"reading": reading, "pngs": outcome.pngs, "draft": draft, "stages": [done]}
+        return {
+            "reading": reading,
+            "pngs": outcome.pngs,
+            "digest": outcome.digest,
+            "draft": draft,
+            "stages": [done],
+        }
 
     def after_read(state: State) -> str:
         return END if "failure" in state else "structure"
@@ -330,4 +339,5 @@ async def run_pipeline(
         geometry=structure.geometry,
         stages=stages,
         reports=dict(final_state.get("reports", [])),
+        digest=final_state["digest"],
     )
