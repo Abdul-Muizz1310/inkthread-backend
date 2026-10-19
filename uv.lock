@@ -536,7 +536,7 @@ wheels = [
 
 [[package]]
 name = "inkgrid"
-version = "0.1.0"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "camelot-py" },
@@ -545,9 +545,9 @@ dependencies = [
     { name = "pymupdf" },
     { name = "pypdfium2" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1d/f1/08e02e6c38f939dbf1aaf6887d92b39e6f031f8f2f85a61c94f9442d14d2/inkgrid-0.1.0.tar.gz", hash = "sha256:92920c1d0b5469a9c1cb1b16add0a5a3b8a5ab54e7831c229d0a979c9bdf3002", size = 139258, upload-time = "2026-10-02T10:57:33.755Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/31/cc/e63b33f3131e61d6e3f2aa5b494bff7b241d64f64e0a722b9c7a335c5bba/inkgrid-0.2.0.tar.gz", hash = "sha256:0901bc73ddcf83cf3fd47ba4a4dde29f8eba2146375cdb8fe14c788ecfc909fa", size = 147250, upload-time = "2026-10-16T08:01:02.009Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/27/e0/abadd0687a9050637e7ac567363e653f4f61584b4799d39caa0f03516366/inkgrid-0.1.0-py3-none-any.whl", hash = "sha256:2648f398a3bfa1426344812aafc6bdef531c80904692745355189a0d48fea0bf", size = 155477, upload-time = "2026-10-02T10:57:32.04Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/17/14c6304ab358dda1904755088c41eeef006d2be2322680248e1bf1b0daf2/inkgrid-0.2.0-py3-none-any.whl", hash = "sha256:5ad9e149fc46c7ec3234d9ce5dab90a60e41a66d2be7c369a47529ebefe86489", size = 161640, upload-time = "2026-10-16T08:01:00.619Z" },
 ]
 
 [[package]]
@@ -611,7 +611,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.40.0" },
     { name = "fastapi", specifier = ">=0.141.1" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "inkgrid", specifier = ">=0.1.0,<0.2" },
+    { name = "inkgrid", specifier = ">=0.2,<0.3" },
     { name = "langgraph", specifier = ">=1.2.10" },
     { name = "prometheus-fastapi-instrumentator", specifier = ">=8.1.0" },
     { name = "pydantic", specifier = ">=2.12,<3" },
