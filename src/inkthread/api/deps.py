@@ -49,10 +49,11 @@ def client_ip(request: Request) -> str:
 
 
 def rate_key(request: Request) -> str:
-    """The upload limiter's bucket: `iss:sub` for a token's caller, else the address (spec 12)."""
+    """The upload limiter's bucket (spec 12 § 3): `bastion:{sub}`, `inkthread-frontend:{address}`,
+    or the bare address without a token."""
     principal = getattr(request.state, "principal", None)
     if isinstance(principal, Principal):
-        return principal.rate_key
+        return principal.rate_key(client_ip(request))
     return client_ip(request)
 
 

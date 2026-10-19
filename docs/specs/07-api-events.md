@@ -90,8 +90,8 @@ sent. A stream lasts at most 10 minutes; the client reconnects with `Last-Event-
   off without being read whole.
 - `%PDF-` must appear in the first 1,024 bytes.
 - Page count and encryption are read with pypdfium2 in a worker thread, behind one process-wide lock.
-- 5 uploads per caller per hour, a sliding window in memory (one instance): per `iss:sub` for a
-  token's caller, else per client IP (spec 12).
+- 5 uploads per caller per hour, a sliding window in memory (one instance): per `bastion:{sub}` for
+  a bastion token, else per client address (spec 12).
 - `X-Request-Id` is echoed or generated on every response.
 - CORS allows `CORS_ORIGINS` only, with methods GET, POST, DELETE and OPTIONS. It allows the request
   headers `content-type`, `x-admin-token`, `last-event-id`, `x-platform-token` and `x-request-id`,
@@ -107,7 +107,7 @@ Upload:
 - T-API-4 Empty file → 400 `empty_file`; a PNG → 415 `not_a_pdf`; 16 MB → 413 `file_too_large`
   without reading the whole body; an encrypted PDF → 422 `pdf_encrypted`; 41 pages → 422
   `too_many_pages`; truncated bytes after `%PDF-` → 422 `pdf_unreadable`.
-- T-API-5 The sixth upload from one IP (or one token subject, spec 12 T-PT-14) within an hour → 429
+- T-API-5 The sixth upload from one IP (or one bastion subject, spec 12 T-PT-14) within an hour → 429
   with `Retry-After`; another IP is not
   limited.
 - T-API-6 With 10 jobs queued, the next upload → 503 `queue_full`.

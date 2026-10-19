@@ -57,8 +57,12 @@ Refusals use the envelope with `detail` set to the code: `{"error": "invalid_pla
 lets every request through anonymous, so tests that are not about the token need none.
 
 - **Admin routes** need a valid platform token **and** `X-Admin-Token`, as before (spec 07).
-- **Uploads' rate limit** keys on `"{iss}:{sub}"` when the request is authenticated, else on the
-  client address (the leftmost `X-Forwarded-For`, applied by uvicorn's proxy headers).
+- **Uploads' rate limit** keys on `"bastion:{sub}"` for a bastion token (the visitor pseudonym), on
+  `"inkthread-frontend:{client address}"` for a frontend token (its `sub` is constant, so keying on it
+  would put every visitor of the site in one bucket), and on the client address without a token.
+  The client address is the leftmost `X-Forwarded-For` as uvicorn's proxy headers apply it behind
+  Render: the proxy forwards exactly one address it sets itself, and a direct browser upload's is the
+  visitor's own. *(Amended 2026-10-20: the first draft keyed every token on `iss:sub`.)*
 - **CORS** allows the request headers `content-type`, `x-admin-token`, `last-event-id`,
   `x-platform-token` and `x-request-id`.
 
@@ -78,8 +82,10 @@ lets every request through anonymous, so tests that are not about the token need
 - T-PT-11 A present but invalid token with `DEMO_MODE=true` → still 401 `invalid_platform_token`.
 - T-PT-12 No trusted key outside the test settings → 503 on a protected route, 200 on `/health`.
 - T-PT-13 Every public route answers without a token; no write is public.
-- T-PT-14 An authenticated upload's rate-limit key is `iss:sub`: a sixth upload with one subject's
-  tokens is refused while another subject's is not.
+- T-PT-14 The rate-limit key is `bastion:{sub}` for a bastion token and
+  `inkthread-frontend:{client address}` for a frontend token: two visitors through the frontend (two
+  client addresses) land in different buckets, one visitor's frontend and bastion uploads in
+  different buckets, and two bastion subjects from one address in different buckets.
 
 Beyond the contract:
 - T-PT-15 `exp - iat` over 300 s, a non-integer `exp`, an empty `sub`, and an unsigned or malformed

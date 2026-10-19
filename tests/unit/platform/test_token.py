@@ -29,13 +29,15 @@ def refused(token: str, **kw: object) -> str:
 def test_T_PT_1_a_bastion_token_for_inkthread_is_accepted() -> None:
     p = check(bastion_token())
     assert p == Principal(iss="bastion", sub="v_abcdefghij", role="viewer")
-    assert p.rate_key == "bastion:v_abcdefghij"
+    assert p.rate_key("203.0.113.7") == "bastion:v_abcdefghij"
 
 
 def test_T_PT_1_a_frontend_token_for_inkthread_is_accepted() -> None:
     p = check(frontend_token())
     assert p.iss == "inkthread-frontend"
-    assert p.rate_key == "inkthread-frontend:inkthread-frontend"
+    # A frontend's sub is constant: its visitors are told apart by address (contract v2, case 14).
+    assert p.rate_key("203.0.113.7") == "inkthread-frontend:203.0.113.7"
+    assert p.rate_key("198.51.100.2") != p.rate_key("203.0.113.7")
 
 
 @pytest.mark.parametrize("aud", ["inkprint", "paper-trail", "magpie", "slowquery", "", "INKTHREAD"])

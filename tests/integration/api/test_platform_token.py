@@ -5,9 +5,10 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 
+import httpx
 import pdfs
 import pytest
-from apiharness import ADMIN, METRICS, ApiFactory, parse_sse
+from apiharness import ADMIN, METRICS, Api, ApiFactory, parse_sse
 from structlog.testing import capture_logs
 from tokens import BASTION, FRONTEND, bastion_token, frontend_token
 
@@ -120,21 +121,36 @@ async def test_T_PT_13_public_routes_need_no_token_and_no_write_is_public(
             assert (await a.client.get(path)).status_code == 401, path
 
 
-async def test_T_PT_14_authenticated_uploads_are_limited_per_subject(
+async def _upload(a: Api, token: str, ip: str, name: str = "a.pdf") -> int:
+    """Upload from client address `ip`, as uvicorn's proxy headers set it behind Render."""
+    transport = httpx.ASGITransport(app=a.app, client=(ip, 4321))
+    files = {"file": (name, pdfs.sectioned(), "application/pdf")}
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.post("/documents", files=files, headers=tok(token))
+    return r.status_code
+
+
+async def test_T_PT_14_two_visitors_through_the_frontend_get_two_buckets(
     api: ApiFactory, keyed: Callable[..., Settings]
 ) -> None:
     async with api(settings=keyed(uploads_per_hour=2)) as a:
-        files = {"file": ("a.pdf", pdfs.sectioned(), "application/pdf")}
         for _ in range(2):
-            r = await a.client.post("/documents", files=files, headers=tok(frontend_token()))
-            assert r.status_code in {200, 202}
-        r = await a.client.post("/documents", files=files, headers=tok(frontend_token()))
-        assert r.status_code == 429
-        other = tok(bastion_token(sub="v_zzzzzzzzzz"))
-        assert (await a.client.post("/documents", files=files, headers=other)).status_code in {
-            200,
-            202,
-        }
+            assert await _upload(a, frontend_token(), "203.0.113.7") in {200, 202}
+        assert await _upload(a, frontend_token(), "203.0.113.7") == 429
+        # Another visitor of the same site: same iss and sub, another address.
+        assert await _upload(a, frontend_token(), "198.51.100.2") in {200, 202}
+        # The first visitor's bastion uploads keep their own bucket, keyed on the pseudonym.
+        assert await _upload(a, bastion_token(sub="v_aaaaaaaaaa"), "203.0.113.7") in {200, 202}
+
+
+async def test_T_PT_14_bastion_buckets_follow_the_pseudonym_not_the_address(
+    api: ApiFactory, keyed: Callable[..., Settings]
+) -> None:
+    async with api(settings=keyed(uploads_per_hour=1)) as a:
+        ip = "192.0.2.1"
+        assert await _upload(a, bastion_token(sub="v_aaaaaaaaaa"), ip) in {200, 202}
+        assert await _upload(a, bastion_token(sub="v_aaaaaaaaaa"), "192.0.2.99") == 429
+        assert await _upload(a, bastion_token(sub="v_bbbbbbbbbb"), ip) in {200, 202}
 
 
 async def test_T_PT_15_a_refusal_names_the_check_and_never_the_token(

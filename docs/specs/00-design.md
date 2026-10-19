@@ -158,7 +158,7 @@ would have judged (`model_unavailable`). The rules-only graph always ships.
 | pages | 40 | inkgrid reads 0.2–2 s a page on a laptop; the free instance is far slower |
 | jobs at once | 1 | one child process; others queue |
 | queue length | 10 | beyond it, `503 queue_full` |
-| uploads per caller | 5 an hour | the model budget is shared; per token subject (`iss:sub`), else per IP (spec 12) |
+| uploads per caller | 5 an hour | the model budget is shared; per bastion subject, else per client address (spec 12) |
 | model calls | 8 per document, and a daily cap below the account's 50 | the free tier |
 | retention | uploads processed, not kept: the PDF goes when its job ends, the results after an hour; samples kept | privacy and storage |
 

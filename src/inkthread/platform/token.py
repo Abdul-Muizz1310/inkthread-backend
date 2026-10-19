@@ -61,9 +61,14 @@ class Principal:
     sub: str
     role: str
 
-    @property
-    def rate_key(self) -> str:
-        """The rate-limit bucket of an authenticated caller (spec 12 § 3)."""
+    def rate_key(self, client: str) -> str:
+        """The rate-limit bucket of an authenticated caller from address `client` (spec 12 § 3).
+
+        bastion's `sub` is the visitor's pseudonym; a frontend's `sub` is constant, so its visitors
+        are told apart by the client address its proxy (or the visitor's own upload) arrives from.
+        """
+        if self.iss == FRONTEND_ISS:
+            return f"{self.iss}:{client}"
         return f"{self.iss}:{self.sub}"
 
 
