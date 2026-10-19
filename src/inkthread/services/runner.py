@@ -18,6 +18,7 @@ from typing import Any
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from inkthread.core.config import LlmMode
 from inkthread.domain.digest import link_tables
 from inkthread.domain.finalize import ExplainFailed
 from inkthread.pipeline.graph import (
@@ -40,6 +41,12 @@ _log = structlog.get_logger(__name__)
 
 MAX_ATTEMPTS = 2
 POLL_S = 5.0
+_STRICTNESS = {LlmMode.OFF: 0, LlmMode.REPLAY: 1, LlmMode.LIVE: 2}
+
+
+def stricter(a: LlmMode, b: LlmMode) -> LlmMode:
+    """The more restrictive of two modes: off < replay < live (spec 11 § 3)."""
+    return a if _STRICTNESS[a] <= _STRICTNESS[b] else b
 
 
 def page_png_key(sha256: str, page: int) -> str:
@@ -92,6 +99,7 @@ class JobRunner:
         reader: Reader,
         inkgrid_version: str,
         job_timeout_s: float,
+        sample_llm_mode: LlmMode = LlmMode.REPLAY,
         poll_s: float = POLL_S,
         max_attempts: int = MAX_ATTEMPTS,
     ) -> None:
@@ -102,6 +110,7 @@ class JobRunner:
         self._reader = reader
         self._inkgrid_version = inkgrid_version
         self._timeout = job_timeout_s
+        self._sample_mode = sample_llm_mode
         self._poll = poll_s
         self._max_attempts = max_attempts
         self._wakeup = asyncio.Event()
@@ -178,6 +187,8 @@ class JobRunner:
 
     async def _run(self, c: _Claimed, store: BlobStore) -> None:
         base = self._agents(c.job_id)
+        if c.kind == "sample":  # samples replay their recorded answers (spec 11 § 3)
+            base = dataclasses.replace(base, mode=stricter(base.mode, self._sample_mode))
         counter = CountingCallLog(base.log)
         deps = PipelineDeps(
             reader=self._reader,

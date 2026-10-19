@@ -61,7 +61,16 @@ bytes and no page images. An upload's reading goes with its document when the up
 - `Cache-Control: public, max-age=300`, as the graph.
 - Protected exactly as the graph is (platform contract v2 on the `contract-v2` branch).
 
-## 3. Test cases
+## 3. Samples replay
+
+A sample's job never calls a model. Its effective LLM mode is the stricter of `LLM_MODE` and
+`SAMPLE_LLM_MODE` (default `replay`; `off` < `replay` < `live`), so a sample's answers come only from
+the record (`samples/answers`). Reprocessing a sample to refresh its derived data therefore costs no
+model call from the shared 50-a-day budget; a stage whose answer was never recorded is skipped
+`replay_miss`, as at seeding. Recording new answers for a sample is deliberate:
+`SAMPLE_LLM_MODE=live` with `LLM_MODE=live`. Uploads keep `LLM_MODE`.
+
+## 4. Test cases
 
 Digest (real inkgrid, synthetic PDFs):
 - T-RD-1 A PDF with one ruled table gives one table: its block id, page 1, the region's bbox, its
@@ -92,3 +101,8 @@ Route (composed flow, CI-mandatory):
 - T-RD-11 The runner writes no reading for a failed job, and a reprocessed document's reading is
   replaced when the new job succeeds.
 
+Samples replay:
+- T-RD-12 With `LLM_MODE=live`, a sample's job makes no model request: recorded answers are hits and
+  a miss is skipped `replay_miss`; an upload's job under the same settings does call the model.
+- T-RD-13 `SAMPLE_LLM_MODE=live` lets a sample call the model; `LLM_MODE=off` keeps a sample off
+  whatever `SAMPLE_LLM_MODE` says.

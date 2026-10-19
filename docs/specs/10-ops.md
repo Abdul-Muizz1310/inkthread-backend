@@ -27,6 +27,7 @@ once at startup and validated there, so a bad configuration fails the boot, not 
 | `OPENROUTER_MODEL_FALLBACK` | `google/gemma-4-26b-a4b-it:free` | |
 | `OPENROUTER_SITE_URL`, `OPENROUTER_APP_NAME` | the frontend URL, `inkthread` | sent as `HTTP-Referer`, `X-Title` |
 | `LLM_MODE` | `live` | `live`, `replay` or `off` (spec 05 § 2) |
+| `SAMPLE_LLM_MODE` | `replay` | samples run under the stricter of this and `LLM_MODE` (spec 11 § 3) |
 | `LLM_MAX_REQUESTS_PER_DOCUMENT` | `8` | |
 | `LLM_DAILY_REQUEST_CAP` | `40` | |
 | `LLM_ACCOUNT_RESERVE` | `10` | |

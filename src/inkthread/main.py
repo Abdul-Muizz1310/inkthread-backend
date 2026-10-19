@@ -143,6 +143,7 @@ def create_app(
             reader=reader or child_reader(cfg),
             inkgrid_version=importlib.metadata.version("inkgrid"),
             job_timeout_s=cfg.job_timeout_s,
+            sample_llm_mode=cfg.sample_llm_mode,
         )
         services = Services(
             sessions=sessions,

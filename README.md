@@ -140,7 +140,7 @@ Configuration is in [`.env.example`](.env.example) and [spec 10](docs/specs/10-o
 
 | Metric | Value |
 |---|---|
-| Tests | 500 (unit, property and integration) |
+| Tests | 500+ (unit, property and integration) |
 | Integration | real Postgres (Testcontainers), the real reader child process, the composed upload → graph flow |
 | Property tests | Hypothesis: spans, ids, section-tree invariants, partition, grounding |
 

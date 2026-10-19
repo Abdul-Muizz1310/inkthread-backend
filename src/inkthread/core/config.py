@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     openrouter_app_name: str = "inkthread"
 
     llm_mode: LlmMode = LlmMode.LIVE
+    sample_llm_mode: LlmMode = LlmMode.REPLAY
     llm_max_requests_per_document: int = Field(default=8, ge=0)
     llm_daily_request_cap: int = Field(default=40, ge=0)
     llm_account_reserve: int = Field(default=10, ge=0)

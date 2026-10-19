@@ -22,7 +22,7 @@ enumerated test cases:
 | [08-persistence-jobs.md](08-persistence-jobs.md) | tables, blobs, the job runner, the reader process, retention |
 | [09-exports.md](09-exports.md) | JSON-LD, GraphML and Cypher exports |
 | [10-ops.md](10-ops.md) | configuration, health, deployment, CI |
-| [11-reading.md](11-reading.md) | inkgrid's tables and verification summary, kept per document |
+| [11-reading.md](11-reading.md) | inkgrid's tables and verification summary, kept per document; samples replay |
 
 ## 1. Where it comes from
 

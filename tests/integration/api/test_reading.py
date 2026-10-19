@@ -1,4 +1,4 @@
-"""Spec 11 cases: the reading route (T-RD-9…11)."""
+"""Spec 11 cases: the reading route (T-RD-9…11) and samples that replay (T-RD-12, T-RD-13)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import inkgrid
 import pdfs
 import pytest
 from apiharness import ADMIN, Api, ApiFactory
+from fake_llm import TaskModel
 from inproc import read_inprocess
 
 from inkthread.core.config import Settings
@@ -113,3 +114,45 @@ async def test_T_RD_11_a_reprocess_replaces_the_reading(api: ApiFactory) -> None
         second = (await a.client.get(f"/documents/{doc_id}/reading")).json()
     assert second["inkgrid_version"] == "0.2.92"
     assert second["tables"] == first["tables"]
+
+
+def _live(make_settings: Callable[..., Settings], **extra: object) -> Settings:
+    return make_settings(llm_mode="live", openrouter_api_key="sk-test", **extra)
+
+
+async def test_T_RD_12_a_sample_never_calls_a_model_but_an_upload_does(
+    api: ApiFactory, make_settings: Callable[..., Settings]
+) -> None:
+    model = TaskModel()
+    data = pdfs.sectioned()
+    async with api(run_jobs=True, model=model, settings=_live(make_settings)) as a:
+        job = await _sample(a, data)
+        assert job["status"] == "succeeded"
+        assert model.requests == []
+        assert job["llm"]["requests"] == 0
+        reasons = {s["name"]: s["reason"] for s in job["stages"]}
+        assert reasons["classify_agent"] in {"replay_miss", "no_input"}
+        # The same text as an upload (other bytes, so not deduplicated) does ask the model.
+        await a.ready(data + b"\n% an upload\n")
+        assert model.requests, "an upload keeps LLM_MODE=live"
+
+
+@pytest.mark.parametrize(
+    ("llm_mode", "sample_mode", "calls"),
+    [("live", "live", True), ("off", "live", False), ("live", "off", False)],
+)
+async def test_T_RD_13_the_sample_mode_is_the_stricter_of_the_two(
+    api: ApiFactory,
+    make_settings: Callable[..., Settings],
+    llm_mode: str,
+    sample_mode: str,
+    calls: bool,
+) -> None:
+    model = TaskModel()
+    settings = make_settings(
+        llm_mode=llm_mode, openrouter_api_key="sk-test", sample_llm_mode=sample_mode
+    )
+    async with api(run_jobs=True, model=model, settings=settings) as a:
+        job = await _sample(a, pdfs.sectioned())
+    assert job["status"] == "succeeded"
+    assert bool(model.requests) is calls

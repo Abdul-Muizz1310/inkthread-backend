@@ -94,7 +94,9 @@ reprocessing an upload whose PDF is gone. A queued job whose PDF is gone fails `
 with its source URL and sha256. `python -m inkthread.cli seed` uploads each one as `kind = sample`
 and runs it through the normal pipeline. `samples/answers/*.json` holds the recorded model answers the
 samples used. Seeding imports them first, so a fresh database replays the samples with zero model
-calls; `--record` runs live and exports any new answers.
+calls. A sample's job always replays (spec 11 § 3): its LLM mode is the stricter of `LLM_MODE` and
+`SAMPLE_LLM_MODE` (default `replay`), so reprocessing a sample never spends the shared budget;
+`SAMPLE_LLM_MODE=live` records new answers deliberately, and `inkthread answers export` writes them out.
 
 ## 6. Test cases
 
