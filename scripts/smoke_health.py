@@ -13,6 +13,20 @@ import time
 import httpx
 
 
+def samples_verdict(status: int, body: object) -> tuple[bool, str]:
+    """Whether `/samples` answered as a healthy deploy does, and a line saying so.
+
+    Behind the platform token (spec 12) a token-less probe gets `401 missing_platform_token`, which
+    is the gate working; `503 platform_auth_unconfigured` means no key is set, a failed deploy.
+    """
+    detail = body.get("detail") if isinstance(body, dict) else None
+    if status == 200 and isinstance(body, dict):
+        return True, f"samples 200: {len(body.get('items', []))} items"
+    if status == 401 and detail == "missing_platform_token":
+        return True, "samples 401: gated by the platform token"
+    return False, f"samples {status}: {detail or 'unexpected answer'}"
+
+
 def main() -> int:
     base = os.environ.get("SMOKE_BASE_URL", "").strip().rstrip("/")
     if not base:
@@ -31,8 +45,13 @@ def main() -> int:
             return 1
         time.sleep(10)
     samples = httpx.get(f"{base}/samples", timeout=60)
-    print(f"health ok; samples {samples.status_code}: {len(samples.json().get('items', []))} items")  # noqa: T201
-    return 0 if samples.status_code == 200 else 1
+    try:
+        body: object = samples.json()
+    except ValueError:
+        body = None
+    ok, line = samples_verdict(samples.status_code, body)
+    print(f"health ok; {line}")  # noqa: T201
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
