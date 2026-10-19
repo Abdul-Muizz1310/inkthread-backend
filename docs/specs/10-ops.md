@@ -88,3 +88,6 @@ never validated against an allow-list (FeeLedger N-10).
 - T-OPS-5 `/version` reports the pipeline version, inkgrid's version and the graph schema.
 - T-OPS-6 The commit SHA falls back through `COMMIT_SHA`, `RENDER_GIT_COMMIT` and `GITHUB_SHA` to
   `unknown`.
+- T-OPS-7 `[tool.uv] required-version` and the `uv_build` requirement admit uv 0.12.18 (the uv
+  Dependabot's updater runs; a floor above it fails every update with `tool_version_not_supported`)
+  and the uv the image copies.
