@@ -27,13 +27,13 @@ then miss the work it caused. So the request id travels with the job:
 1. `POST /documents` (and the admin's reprocess) reads the request's tagged id (the library's
    `current_request_id()`, the `X-Request-Id` it accepted) and stores it on the new job
    (`jobs.request_id`, migration `0004`, `ADD COLUMN IF NOT EXISTS`).
-2. The runner runs the claimed job under that id (`inkthread.core.request_scope.attributed_to`), so
-   every statement of the pipeline and of storing its results counts against R.
+2. The runner runs the claimed job inside the library's public `request_scope(R)` (0.2.1), so every
+   statement of the pipeline and of storing its results counts against R.
 3. A deduplicated upload creates no job and attributes nothing new; a job with no id (an upload
-   without the header, a seed) is attributed to nobody, as before.
-
-`attributed_to` sets the library's request-id context variable, which 0.2 does not expose as API; a
-test pins it to `current_request_id()`, so a library change that breaks it fails CI.
+   without the header, a seed) runs outside any scope, attributed to nobody, as before.
+4. A stored id the library refuses (it cannot come from a request, whose id the tagger already
+   validated, but a row may be edited) never fails the job: the runner logs a WARNING and runs it
+   unattributed.
 
 ## 3. Test cases
 
@@ -43,8 +43,8 @@ test pins it to `current_request_id()`, so a library change that breaks it fails
   test settings → 403.
 - T-SQ-3 An upload with `X-Request-Id: U` stores U on its job, and the job's own statements (its
   events, its graph) are listed under U.
-- T-SQ-4 `attributed_to(R)` makes `current_request_id()` R inside and restores the outer value after;
-  a malformed id attributes to nobody.
+- T-SQ-4 A job whose stored request id is malformed still succeeds, unattributed, with a WARNING; a
+  job with no id runs unattributed.
 - T-SQ-5 The engine exists on `app.state` right after `create_app`, the lifespan uses that engine, and
   two lifespans in a row on fresh apps both serve `/health`.
 - T-SQ-6 Migration `0004` adds `jobs.request_id`; a second `upgrade head` is a no-op; `downgrade 0003`

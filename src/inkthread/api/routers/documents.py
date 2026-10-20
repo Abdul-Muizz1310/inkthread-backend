@@ -7,11 +7,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Header, Path, Request, Response
 from fastapi.responses import JSONResponse
+from slowquery_detective import current_request_id
 
 from inkthread.api.deps import ConfigDep, ServicesDep, rate_key
 from inkthread.api.uploads import read_upload
 from inkthread.core.errors import RateLimited
-from inkthread.core.request_scope import tagged_request_id
 from inkthread.domain.why import Why
 from inkthread.schemas.documents import DocumentOut, GeometryWord, UploadOut
 from inkthread.schemas.platform import ErrorOut
@@ -47,7 +47,7 @@ async def upload(request: Request, services: ServicesDep, config: ConfigDep) -> 
     if retry is not None:
         raise RateLimited(headers={"Retry-After": str(retry)}, detail={"retry_after": retry})
     file_name, data = await read_upload(request, config.settings.max_upload_bytes)
-    out = await services.ingest.ingest(data, file_name, request_id=tagged_request_id())
+    out = await services.ingest.ingest(data, file_name, request_id=current_request_id())
     return upload_response(out)
 
 

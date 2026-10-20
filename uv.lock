@@ -693,7 +693,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pyjwt", extras = ["crypto"], specifier = ">=2.15.1" },
     { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "slowquery-detective", extras = ["fastapi", "postgres"], specifier = ">=0.2,<0.3" },
+    { name = "slowquery-detective", extras = ["fastapi", "postgres"], specifier = ">=0.2.1,<0.3" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.49" },
     { name = "sse-starlette", specifier = ">=3.3.4" },
     { name = "structlog", specifier = ">=25.5.0" },
@@ -1552,7 +1552,7 @@ wheels = [
 
 [[package]]
 name = "slowquery-detective"
-version = "0.2.0"
+version = "0.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -1561,9 +1561,9 @@ dependencies = [
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "sqlglot" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/18/bb/8161b1b59ee81cd67be7201f5350202d18a7a840d0140b608c9a8ea51965/slowquery_detective-0.2.0.tar.gz", hash = "sha256:9004c80ca9d299d2f6bcdceb737220b7db5266d6e8bf2d0de844f32fd14e1440", size = 59300, upload-time = "2026-10-19T22:10:39.083Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/36/b4/e589544a73b9b06b64a30c3ceee8e771e02b325c41c27ea463ff5348781c/slowquery_detective-0.2.1.tar.gz", hash = "sha256:8343ac82555e4041a5bff5bbd1dab5f3a5dc33f54341489377dfb2cb2b3df7a9", size = 60447, upload-time = "2026-10-20T05:06:06.993Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/be/e8d7c01d8a44ca76c6d88ce6e58117dd5f6a5477e5f14c16bdde79402f71/slowquery_detective-0.2.0-py3-none-any.whl", hash = "sha256:da08c9374f1e5a66c5100606291ec37c69fcab2e61e70a3d4e906fdf63e64201", size = 61871, upload-time = "2026-10-19T22:10:37.755Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/73/0b2f0b3dcad969f4c78299dbdc39ca0d0fb2b59989f29e56664ac1f1280d/slowquery_detective-0.2.1-py3-none-any.whl", hash = "sha256:db455dedf797aadefba961a7794d96f75c5cd6cf2e7783a8795f7fbebb405439", size = 62792, upload-time = "2026-10-20T05:06:05.985Z" },
 ]
 
 [package.optional-dependencies]

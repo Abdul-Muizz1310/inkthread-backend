@@ -16,10 +16,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import structlog
+from slowquery_detective import request_scope
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from inkthread.core.config import LlmMode
-from inkthread.core.request_scope import attributed_to
 from inkthread.domain.digest import link_tables
 from inkthread.domain.finalize import ExplainFailed
 from inkthread.pipeline.graph import (
@@ -73,6 +73,20 @@ class _Claimed:
     file_name: str | None
     kind: str
     request_id: str | None
+
+
+def _attribution(c: _Claimed) -> contextlib.AbstractContextManager[object]:
+    """The job's statements count against the request that queued it (spec 13 § 2).
+
+    No stored id: no scope. An id the library refuses never fails the job: it runs unattributed.
+    """
+    if c.request_id is None:
+        return contextlib.nullcontext()
+    try:
+        return request_scope(c.request_id)
+    except (ValueError, TypeError) as exc:
+        _log.warning("job_request_id_refused", job_id=str(c.job_id), error=type(exc).__name__)
+        return contextlib.nullcontext()
 
 
 def _llm_facts(counter: CountingCallLog, rejected: int = 0) -> dict[str, int]:
@@ -170,7 +184,7 @@ class JobRunner:
         store = self._stores.for_kind(claimed.kind)
         try:
             # The job's statements count against the request that queued it (spec 13 § 2).
-            with attributed_to(claimed.request_id):
+            with _attribution(claimed):
                 await self._run(claimed, store)
         finally:
             if claimed.kind == "upload":  # processed, not kept (spec 08 § 2)
