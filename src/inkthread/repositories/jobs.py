@@ -16,9 +16,16 @@ def _now() -> dt.datetime:
     return dt.datetime.now(dt.UTC)
 
 
-async def create(s: AsyncSession, document_id: uuid.UUID) -> Job:
-    """Insert a queued job."""
-    job = Job(document_id=document_id, status="queued", attempt=1, stages=[], llm={})
+async def create(s: AsyncSession, document_id: uuid.UUID, *, request_id: str | None = None) -> Job:
+    """Insert a queued job, remembering the request that queued it (spec 13 § 2)."""
+    job = Job(
+        document_id=document_id,
+        status="queued",
+        attempt=1,
+        stages=[],
+        llm={},
+        request_id=request_id,
+    )
     s.add(job)
     await s.flush()
     return job

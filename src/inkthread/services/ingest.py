@@ -85,7 +85,12 @@ class IngestService:
         self._wake = wake
 
     async def ingest(
-        self, data: bytes, file_name: str | None, *, kind: DocumentKind = "upload"
+        self,
+        data: bytes,
+        file_name: str | None,
+        *,
+        kind: DocumentKind = "upload",
+        request_id: str | None = None,
     ) -> UploadOut:
         """Validate and enqueue. Same bytes while queued, running or ready: deduplicated."""
         # Samples are processed ahead of time, so the live-upload page cap does not apply.
@@ -93,7 +98,7 @@ class IngestService:
         sha = hashlib.sha256(data).hexdigest()
         for attempt in range(2):
             try:
-                out = await self._enqueue(data, sha, file_name, pages, kind)
+                out = await self._enqueue(data, sha, file_name, pages, kind, request_id)
             except IntegrityError:
                 # A concurrent upload of the same bytes created the document first; look again.
                 if attempt:
@@ -104,8 +109,14 @@ class IngestService:
             return out
         raise AssertionError  # pragma: no cover - the loop returns or raises
 
-    async def _enqueue(
-        self, data: bytes, sha: str, file_name: str | None, pages: int, kind: DocumentKind
+    async def _enqueue(  # noqa: PLR0917 - one upload's facts
+        self,
+        data: bytes,
+        sha: str,
+        file_name: str | None,
+        pages: int,
+        kind: DocumentKind,
+        request_id: str | None,
     ) -> UploadOut:
         now = dt.datetime.now(dt.UTC)
         async with self._sessions() as s, s.begin():
@@ -129,7 +140,7 @@ class IngestService:
                     )
                 await self._check_queue(s)
                 await store.put(pdf_key(sha), data, "application/pdf")
-                job = await jobs.create(s, doc.id)
+                job = await jobs.create(s, doc.id, request_id=request_id)
                 doc.status = "queued"
                 await s.flush()
                 return UploadOut(document=document_out(doc, job), job=job_out(job))
@@ -145,7 +156,7 @@ class IngestService:
                 expires_at=expires,
             )
             await self._stores.for_kind(kind).put(pdf_key(sha), data, "application/pdf")
-            job = await jobs.create(s, doc.id)
+            job = await jobs.create(s, doc.id, request_id=request_id)
             return UploadOut(document=document_out(doc, job), job=job_out(job))
 
     async def _check_queue(self, s: AsyncSession) -> None:

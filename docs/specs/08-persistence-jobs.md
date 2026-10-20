@@ -5,7 +5,7 @@
 | table | columns | constraints |
 |---|---|---|
 | `documents` | `id uuid pk`, `sha256 char(64)`, `file_name text null`, `title text null`, `page_count int`, `byte_size int`, `kind text`, `status text`, `created_at`, `updated_at`, `expires_at timestamptz null` | `sha256` unique; `kind in (sample, upload)`; `status in (queued, processing, ready, failed)`; `page_count > 0`; `byte_size > 0` |
-| `jobs` | `id uuid pk`, `document_id uuid`, `status text`, `stage text null`, `attempt int`, `created_at`, `started_at`, `finished_at`, `error_code text null`, `error_message text null`, `stages jsonb`, `llm jsonb` | fk → documents `on delete cascade`; `status in (queued, running, succeeded, failed)`; index `(status, created_at)` |
+| `jobs` | `id uuid pk`, `document_id uuid`, `status text`, `stage text null`, `attempt int`, `created_at`, `started_at`, `finished_at`, `error_code text null`, `error_message text null`, `stages jsonb`, `llm jsonb`, `request_id varchar(128) null` (migration `0004`, spec 13) | fk → documents `on delete cascade`; `status in (queued, running, succeeded, failed)`; index `(status, created_at)` |
 | `job_events` | `job_id uuid`, `seq int`, `type text`, `payload jsonb`, `created_at` | pk `(job_id, seq)`; fk → jobs `on delete cascade` |
 | `graphs` | `document_id uuid pk`, `schema_version text`, `graph_hash char(64)`, `graph jsonb`, `ops jsonb`, `created_at` | fk → documents `on delete cascade` |
 | `llm_calls` | `id bigserial pk`, `job_id uuid null`, `task text`, `model text null`, `request_key char(64)`, `cached bool`, `status text`, `http_status int null`, `latency_ms int`, `prompt_tokens int null`, `completion_tokens int null`, `created_at` | fk → jobs `on delete set null`; index `(created_at)` |

@@ -125,6 +125,11 @@ bearer) needs an `X-Platform-Token`: a 60-second Ed25519 JWT from bastion or fro
 server, with `aud: "inkthread"` ([spec 12](docs/specs/12-platform-token.md)). With no key configured,
 protected routes answer `503` outside `APP_ENV=test`.
 
+Query receipts: [slowquery-detective](https://pypi.org/project/slowquery-detective/) 0.2 counts every
+statement a request with `X-Request-Id: R` causes, including the job an upload queues (the job keeps
+R), in schema `slowquery` of the service's own Postgres; `GET /_slowquery/queries?request_id=R` lists
+them for a bastion token only ([spec 13](docs/specs/13-query-observability.md)).
+
 Configuration is in [`.env.example`](.env.example) and [spec 10](docs/specs/10-ops.md).
 
 ---

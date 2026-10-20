@@ -184,7 +184,9 @@ class DocumentService:
         await store.delete_prefix(pdf_key(sha))
         await store.delete_prefix(pages_prefix(sha))
 
-    async def reprocess(self, document_id: uuid.UUID) -> UploadOut:
+    async def reprocess(
+        self, document_id: uuid.UUID, *, request_id: str | None = None
+    ) -> UploadOut:
         """Queue the pipeline again (an active job is returned as is); an upload's PDF went when its
         job ended, so an upload cannot be reprocessed."""
         async with self._sessions() as s, s.begin():
@@ -193,7 +195,7 @@ class DocumentService:
             if job is None:
                 if await self._stores.for_kind(doc.kind).get(pdf_key(doc.sha256)) is None:
                     raise UploadNotKept
-                job = await jobs.create(s, doc.id)
+                job = await jobs.create(s, doc.id, request_id=request_id)
                 doc.status = "queued"
                 await s.flush()
             out = UploadOut(

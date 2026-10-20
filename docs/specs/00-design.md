@@ -22,6 +22,7 @@ enumerated test cases:
 | [08-persistence-jobs.md](08-persistence-jobs.md) | tables, blobs, the job runner, the reader process, retention |
 | [09-exports.md](09-exports.md) | JSON-LD, GraphML and Cypher exports |
 | [10-ops.md](10-ops.md) | configuration, health, deployment, CI |
+| [13-query-observability.md](13-query-observability.md) | slowquery-detective: per-request query receipts, jobs attributed to their upload |
 | [12-platform-token.md](12-platform-token.md) | platform contract v2: who may call, and how a token is checked |
 | [11-reading.md](11-reading.md) | inkgrid's tables and verification summary, kept per document; samples replay |
 

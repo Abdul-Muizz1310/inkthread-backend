@@ -8,11 +8,12 @@ from typing import Final
 
 import structlog
 from starlette.datastructures import Headers
+from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from inkthread.core.errors import envelope
 from inkthread.platform.keys import KeyResolver
-from inkthread.platform.token import Principal, TokenRejected, verify
+from inkthread.platform.token import BASTION_ISS, Principal, TokenRejected, verify
 
 _log = structlog.get_logger(__name__)
 
@@ -100,3 +101,9 @@ async def _refuse(send: Send, status: int, code: str) -> None:
         headers.append((b"www-authenticate", b'Bearer realm="inkthread"'))
     await send({"type": "http.response.start", "status": status, "headers": headers})
     await send({"type": "http.response.body", "body": body})
+
+
+async def bastion_only(request: Request) -> bool:
+    """slowquery-detective's `authorize` (spec 13 § 1): only a bastion-key caller reads receipts."""
+    principal = getattr(request.state, "principal", None)
+    return isinstance(principal, Principal) and principal.iss == BASTION_ISS
