@@ -26,6 +26,7 @@ from inkthread.pipeline.graph import Reader
 def make_settings(database_url: str, tmp_path: Path) -> Callable[..., Settings]:
     def make(**overrides: object) -> Settings:
         base: dict[str, object] = {
+            "app_env": "test",
             "database_url": database_url,
             "llm_mode": "off",
             "blob_root": tmp_path / "blobs",

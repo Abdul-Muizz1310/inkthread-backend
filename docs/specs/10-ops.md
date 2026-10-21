@@ -13,6 +13,10 @@ once at startup and validated there, so a bad configuration fails the boot, not 
 | `DATABASE_URL` | — | required; Neon URLs are normalised (spec 08 § 1) |
 | `CORS_ORIGINS` | `http://localhost:3000` | comma-separated; `*` is refused in production |
 | `ADMIN_TOKEN` | unset | admin routes answer `503 admin_disabled` while unset |
+| `BASTION_SIGNING_KEY_PUBLIC` | unset | bastion's Ed25519 public key, base64 SPKI DER (spec 12); a bad value fails the boot |
+| `BASTION_PUBLIC_KEY_URL` | unset | where to fetch bastion's key (`publicKey`) when the variable above is unset; kept an hour |
+| `INKTHREAD_FRONTEND_SIGNING_KEY_PUBLIC` | unset | inkthread-frontend's public key; its tokens need `role: frontend` |
+| `DEMO_MODE` | `false` | `true` lets a request without a token through anonymous (a WARNING each); never an invalid one |
 | `METRICS_TOKEN` | unset | `/metrics` answers `503` while unset, and otherwise wants `Authorization: Bearer` |
 | `BLOB_STORE` | `local` | where samples keep their files: `local`, `postgres` or `r2` |
 | `BLOB_ROOT` | `./var/blobs` | for `local` |
@@ -63,7 +67,8 @@ never validated against an allow-list (FeeLedger N-10).
 - **Render.** One free web service with `healthCheckPath: /health`. Secrets are `sync: false`. It
   points at the Neon branch `inkthread`; samples keep their files in Postgres (`BLOB_STORE=postgres`).
 - **Smoke.** The repository variable `SMOKE_BASE_URL`, a bare origin, feeds a push-only CI job that
-  probes `/health` and `/samples`. It skips itself when unset.
+  probes `/health` and `/samples` (a `401 missing_platform_token` there is the gate working; a `503
+  platform_auth_unconfigured` fails the smoke). It skips itself when unset.
 
 ## 4. CI (`.github/workflows/ci.yml`)
 

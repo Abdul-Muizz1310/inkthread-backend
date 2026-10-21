@@ -27,6 +27,12 @@ services:
         value: live
       - key: ADMIN_TOKEN
         sync: false
+      - key: BASTION_SIGNING_KEY_PUBLIC   # platform contract v2 (spec 12)
+        sync: false
+      - key: INKTHREAD_FRONTEND_SIGNING_KEY_PUBLIC
+        sync: false
+      - key: DEMO_MODE
+        sync: false
       - key: METRICS_TOKEN
         sync: false
       - key: MAX_PAGES

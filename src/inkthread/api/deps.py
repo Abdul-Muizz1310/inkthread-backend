@@ -11,6 +11,7 @@ from fastapi import Depends, Header, Request
 from inkthread.core.config import Settings
 from inkthread.core.errors import AdminDisabled, AdminTokenInvalid, AdminTokenRequired
 from inkthread.core.ratelimit import SlidingWindow
+from inkthread.platform.token import Principal
 from inkthread.services.container import Services
 
 
@@ -45,6 +46,15 @@ def get_config(request: Request) -> ApiConfig:
 def client_ip(request: Request) -> str:
     """The caller's address (uvicorn applies the proxy headers in production)."""
     return request.client.host if request.client else "unknown"
+
+
+def rate_key(request: Request) -> str:
+    """The upload limiter's bucket (spec 12 § 3): `bastion:{sub}`, `inkthread-frontend:{address}`,
+    or the bare address without a token."""
+    principal = getattr(request.state, "principal", None)
+    if isinstance(principal, Principal):
+        return principal.rate_key(client_ip(request))
+    return client_ip(request)
 
 
 def require_admin(

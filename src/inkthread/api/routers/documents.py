@@ -7,8 +7,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Header, Path, Request, Response
 from fastapi.responses import JSONResponse
+from slowquery_detective import current_request_id
 
-from inkthread.api.deps import ConfigDep, ServicesDep, client_ip
+from inkthread.api.deps import ConfigDep, ServicesDep, rate_key
 from inkthread.api.uploads import read_upload
 from inkthread.core.errors import RateLimited
 from inkthread.domain.why import Why
@@ -42,11 +43,12 @@ def upload_response(out: UploadOut) -> JSONResponse:
     summary="Upload a PDF (multipart field `file`)",
 )
 async def upload(request: Request, services: ServicesDep, config: ConfigDep) -> JSONResponse:
-    retry = config.limiter.hit(client_ip(request))
+    retry = config.limiter.hit(rate_key(request))
     if retry is not None:
         raise RateLimited(headers={"Retry-After": str(retry)}, detail={"retry_after": retry})
     file_name, data = await read_upload(request, config.settings.max_upload_bytes)
-    return upload_response(await services.ingest.ingest(data, file_name))
+    out = await services.ingest.ingest(data, file_name, request_id=current_request_id())
+    return upload_response(out)
 
 
 @router.get("/documents/{document_id}", response_model=DocumentOut, responses=ERRORS)

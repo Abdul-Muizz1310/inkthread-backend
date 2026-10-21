@@ -6,6 +6,7 @@ import uuid
 
 from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
+from slowquery_detective import current_request_id
 
 from inkthread.api.deps import AdminDep, ServicesDep
 from inkthread.api.routers.documents import upload_response
@@ -31,4 +32,5 @@ async def delete_document(document_id: uuid.UUID, services: ServicesDep) -> Resp
     responses=ERRORS,
 )
 async def reprocess(document_id: uuid.UUID, services: ServicesDep) -> JSONResponse:
-    return upload_response(await services.documents.reprocess(document_id))
+    out = await services.documents.reprocess(document_id, request_id=current_request_id())
+    return upload_response(out)

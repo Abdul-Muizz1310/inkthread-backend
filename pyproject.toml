@@ -22,7 +22,9 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=8.1.0",
     "pydantic>=2.12,<3",
     "pydantic-settings>=2.14.2",
+    "pyjwt[crypto]>=2.15.1",
     "python-multipart>=0.0.20",
+    "slowquery-detective[fastapi,postgres]>=0.2.1,<0.3",
     "sqlalchemy[asyncio]>=2.0.49",
     "sse-starlette>=3.3.4",
     "structlog>=25.5.0",
@@ -82,6 +84,7 @@ ignore = ["COM812", "PLR0913", "TRY003", "PLR2004", "PLR0911", "PLR0912"]
 "alembic/**" = ["INP001"]
 # Domain errors are named after their spec 07 codes (`NotFound`, `QueueFull`), not `*Error`.
 "src/inkthread/core/errors.py" = ["N818"]
+"src/inkthread/platform/token.py" = ["N818"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"

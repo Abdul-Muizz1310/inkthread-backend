@@ -16,6 +16,8 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from inkthread.platform.keys import parse_public_key
+
 _PLACEHOLDER_SHAS = frozenset({"", "unknown", "none", "null"})
 
 
@@ -52,6 +54,13 @@ class Settings(BaseSettings):
     )
     admin_token: SecretStr | None = None
     metrics_token: SecretStr | None = None
+
+    # Platform contract v2 (spec 12): the trusted keys, base64 SPKI DER; DEMO_MODE excuses a missing
+    # token only.
+    bastion_signing_key_public: str | None = None
+    bastion_public_key_url: str | None = None
+    inkthread_frontend_signing_key_public: str | None = None
+    demo_mode: bool = False
 
     blob_store: BlobStoreKind = BlobStoreKind.LOCAL
     blob_root: Path = Path("./var/blobs")
@@ -121,6 +130,14 @@ class Settings(BaseSettings):
             if missing:
                 msg = f"BLOB_STORE=r2 needs {', '.join(missing)}"
                 raise ValueError(msg)
+        for name in ("bastion_signing_key_public", "inkthread_frontend_signing_key_public"):
+            value = getattr(self, name)
+            if value is not None and value.strip():
+                try:
+                    parse_public_key(value)
+                except ValueError as exc:
+                    msg = f"{name.upper()} is {exc}"
+                    raise ValueError(msg) from None
         if self.llm_mode is LlmMode.LIVE and self.openrouter_api_key is None:
             msg = "LLM_MODE=live needs OPENROUTER_API_KEY (use replay or off without one)"
             raise ValueError(msg)

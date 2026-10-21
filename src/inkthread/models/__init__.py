@@ -87,6 +87,8 @@ class Job(Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     stages: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     llm: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+    # The X-Request-Id of the upload that queued it (spec 13 § 2); the runner works under it.
+    request_id: Mapped[str | None] = mapped_column(String(128))
 
 
 class JobEvent(Base):

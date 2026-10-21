@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import structlog
+from slowquery_detective import request_scope
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from inkthread.core.config import LlmMode
@@ -71,6 +72,21 @@ class _Claimed:
     sha256: str
     file_name: str | None
     kind: str
+    request_id: str | None
+
+
+def _attribution(c: _Claimed) -> contextlib.AbstractContextManager[object]:
+    """The job's statements count against the request that queued it (spec 13 § 2).
+
+    No stored id: no scope. An id the library refuses never fails the job: it runs unattributed.
+    """
+    if c.request_id is None:
+        return contextlib.nullcontext()
+    try:
+        return request_scope(c.request_id)
+    except (ValueError, TypeError) as exc:
+        _log.warning("job_request_id_refused", job_id=str(c.job_id), error=type(exc).__name__)
+        return contextlib.nullcontext()
 
 
 def _llm_facts(counter: CountingCallLog, rejected: int = 0) -> dict[str, int]:
@@ -167,7 +183,9 @@ class JobRunner:
         log.info("job_started")
         store = self._stores.for_kind(claimed.kind)
         try:
-            await self._run(claimed, store)
+            # The job's statements count against the request that queued it (spec 13 § 2).
+            with _attribution(claimed):
+                await self._run(claimed, store)
         finally:
             if claimed.kind == "upload":  # processed, not kept (spec 08 § 2)
                 await store.delete_prefix(pdf_key(claimed.sha256))
@@ -183,7 +201,7 @@ class JobRunner:
             if doc is None:  # pragma: no cover - the foreign key cascades jobs with documents
                 return None
             doc.status = "processing"
-            return _Claimed(job.id, doc.id, doc.sha256, doc.file_name, doc.kind)
+            return _Claimed(job.id, doc.id, doc.sha256, doc.file_name, doc.kind, job.request_id)
 
     async def _run(self, c: _Claimed, store: BlobStore) -> None:
         base = self._agents(c.job_id)

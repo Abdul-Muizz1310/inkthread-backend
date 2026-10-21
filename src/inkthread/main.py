@@ -14,6 +14,7 @@ from functools import lru_cache
 
 import httpx
 from fastapi import FastAPI
+from slowquery_detective import install as install_query_observability
 
 from inkthread import __version__
 from inkthread.api.deps import ApiConfig
@@ -28,7 +29,10 @@ from inkthread.llm.catalog import ModelCatalog
 from inkthread.llm.client import OpenRouterModel
 from inkthread.llm.ports import BudgetPort, ModelPort
 from inkthread.pipeline.graph import Reader
+from inkthread.platform.auth import bastion_only
+from inkthread.platform.keys import KeyResolver
 from inkthread.platform.setup import install_platform
+from inkthread.platform.token import SERVICE_ID
 from inkthread.reader.process import ReadOutcome, read_in_child
 from inkthread.services.broadcast import Broadcast
 from inkthread.services.container import Services
@@ -97,10 +101,12 @@ def create_app(
     """
     cfg = settings or get_settings()
     configure_logging(level=cfg.log_level, json_logs=cfg.is_production)
+    # Built here, not in the lifespan: slowquery-detective's install needs it at construction
+    # (spec 13 § 1). Creating it opens no connection; the lifespan disposes of it.
+    engine = make_engine(cfg.database_url)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        engine = make_engine(cfg.database_url)
         sessions = make_sessions(engine)
         stores = Stores(
             samples=blobs or make_blob_store(cfg, sessions),
@@ -163,7 +169,6 @@ def create_app(
             runner=runner,
             retention=RetentionSweeper(sessions, stores),
         )
-        app.state.engine = engine
         app.state.services = services
         if run_jobs:
             await runner.start()
@@ -182,6 +187,7 @@ def create_app(
         summary="A born-digital PDF as a knowledge graph of its parts and their threads.",
         lifespan=lifespan,
     )
+    app.state.engine = engine
     app.state.config = ApiConfig(
         settings=cfg,
         limiter=SlidingWindow(limit=cfg.uploads_per_hour, window_s=HOUR_S),
@@ -191,7 +197,25 @@ def create_app(
     install_error_handlers(app)
     for module in (documents, jobs, samples, admin):
         app.include_router(module.router)
-    install_platform(app, cors_origins=cfg.cors_origins)
+    install_platform(
+        app,
+        cors_origins=cfg.cors_origins,
+        keys=KeyResolver(
+            bastion=cfg.bastion_signing_key_public,
+            bastion_url=cfg.bastion_public_key_url,
+            frontend=cfg.inkthread_frontend_signing_key_public,
+        ),
+        demo_mode=cfg.demo_mode,
+        enforce_unconfigured=cfg.app_env != "test",
+    )
+    # After the app's own middleware, so the request tagger wraps them all (spec 13 § 1).
+    install_query_observability(
+        app,
+        engine,
+        service=SERVICE_ID,
+        store_url=cfg.database_url,
+        authorize=bastion_only,
+    )
     return app
 
 
