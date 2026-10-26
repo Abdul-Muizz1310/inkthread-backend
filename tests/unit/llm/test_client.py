@@ -143,6 +143,57 @@ async def test_400_goes_straight_to_fallback(http: httpx.AsyncClient) -> None:  
     assert sleeps.calls == []
 
 
+def error_in_200(code: int | None) -> httpx.Response:
+    error: dict[str, object] = {"message": "Rate limit exceeded: free-models-per-day"}
+    if code is not None:
+        error["code"] = code
+    return httpx.Response(200, json={"error": error})
+
+
+@respx.mock
+async def test_a_429_inside_a_200_is_retried_on_the_same_model(
+    http: httpx.AsyncClient,
+) -> None:  # T-AG-22c
+    respx.get(f"{BASE}/models").mock(return_value=httpx.Response(200, json=CATALOG))
+    route = respx.post(f"{BASE}/chat/completions").mock(
+        side_effect=[error_in_200(429), reply(ANSWER)]
+    )
+    sleeps = Sleeps()
+    result = await model(http, sleeps=sleeps).complete(request())
+    assert result.served_model == PRIMARY
+    assert [a.status for a in result.attempts] == ["http_error", "ok"]
+    assert [a.http_status for a in result.attempts] == [429, 200]
+    assert [b["model"] for b in bodies(route)] == [PRIMARY, PRIMARY]
+    assert len(sleeps.calls) == 1
+
+
+@respx.mock
+async def test_a_400_inside_a_200_goes_straight_to_fallback(
+    http: httpx.AsyncClient,
+) -> None:  # T-AG-22c
+    respx.get(f"{BASE}/models").mock(return_value=httpx.Response(200, json=CATALOG))
+    route = respx.post(f"{BASE}/chat/completions").mock(
+        side_effect=[error_in_200(400), reply(ANSWER)]
+    )
+    result = await model(http).complete(request())
+    assert result.served_model == FALLBACK
+    assert [(a.status, a.http_status) for a in result.attempts] == [
+        ("http_error", 400),
+        ("ok", 200),
+    ]
+    assert [b["model"] for b in bodies(route)] == [PRIMARY, FALLBACK]
+
+
+@respx.mock
+async def test_an_error_without_a_code_inside_a_200_is_a_bad_response(
+    http: httpx.AsyncClient,
+) -> None:  # T-AG-22c
+    respx.get(f"{BASE}/models").mock(return_value=httpx.Response(200, json=CATALOG))
+    respx.post(f"{BASE}/chat/completions").mock(side_effect=[error_in_200(None), reply(ANSWER)])
+    result = await model(http).complete(request())
+    assert [a.status for a in result.attempts] == ["bad_response", "ok"]
+
+
 @respx.mock
 async def test_401_stops_the_cascade(http: httpx.AsyncClient) -> None:  # T-AG-20
     respx.get(f"{BASE}/models").mock(return_value=httpx.Response(200, json=CATALOG))

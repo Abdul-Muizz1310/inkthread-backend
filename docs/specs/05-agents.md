@@ -137,7 +137,10 @@ The headers carry the key, `HTTP-Referer` and `X-Title`.
 
 **Attempts.** Each model gets up to two attempts. A timeout, `429`, `5xx`, empty content or
 `finish_reason == "length"` retries the same model after 2 s, then 4 s (±25% jitter). Any other `4xx`
-moves straight to the next model. `401` stops the whole cascade (`model_auth_failed`). The cascade has a
+moves straight to the next model. `401` stops the whole cascade (`model_auth_failed`). A `200` whose
+body is OpenRouter's error object (`{"error": {"code": 429, …}}`, its report of an upstream failure after
+answering 200) is that error: an `http_error` attempt with the body's code as its status, retried or not
+by that code; an error object without a code stays `bad_response` (2026-10-26). The cascade has a
 180 s deadline. If every attempt fails, the result is `ModelUnavailable` and the stage abstains for that
 batch.
 
@@ -205,6 +208,9 @@ Transport (respx):
   carry the key.
 - T-AG-22b A reply wrapped in prose or a code fence still yields its first JSON object; a reply with
   none counts as a failed attempt.
+- T-AG-22c A `200` carrying `{"error": {"code": 429}}` is an `http_error` attempt with status 429, and
+  the primary answers on its second attempt; `{"error": {"code": 400}}` in a `200` goes straight to the
+  fallback; `{"error": {"message": …}}` without a code is `bad_response`.
 
 Security:
 - T-AG-23 A node's hidden words never appear in any prompt.

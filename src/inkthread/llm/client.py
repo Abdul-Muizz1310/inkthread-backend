@@ -99,6 +99,25 @@ class _Usage(BaseModel):
     completion_tokens_details: Annotated[_Details | None, BeforeValidator(_mapping_or_none)] = None
 
 
+class _ReplyError(BaseModel):
+    code: Count = None
+
+
+class _ErrorReply(BaseModel):
+    """OpenRouter's error object, which can come back inside a 200 instead of a completion."""
+
+    error: Annotated[_ReplyError | None, BeforeValidator(_mapping_or_none)] = None
+
+
+def upstream_error_code(content: bytes) -> int | None:
+    """The status code of an OpenRouter error object in a 200's body, if the body is one."""
+    try:
+        reply = _ErrorReply.model_validate_json(content)
+    except ValidationError:
+        return None
+    return reply.error.code if reply.error else None
+
+
 class _ChatResponse(BaseModel):
     choices: list[_Choice]
     usage: Annotated[_Usage | None, BeforeValidator(_mapping_or_none)] = None
@@ -289,7 +308,14 @@ class OpenRouterModel:
         try:
             parsed = _ChatResponse.model_validate_json(response.content)
         except ValidationError:
-            return _Outcome(attempt("bad_response", code), retry=True)
+            upstream = upstream_error_code(response.content)
+            if upstream is None:
+                return _Outcome(attempt("bad_response", code), retry=True)
+            # Spec 05 § 6: OpenRouter's error object inside a 200 is that error.
+            _log.info("openrouter_http_error", model=slug, status=upstream, in_body=True)
+            return _Outcome(
+                attempt("http_error", upstream), retry=upstream == 429 or upstream >= 500
+            )
         usage = Usage(
             prompt_tokens=parsed.usage.prompt_tokens if parsed.usage else None,
             completion_tokens=parsed.usage.completion_tokens if parsed.usage else None,
