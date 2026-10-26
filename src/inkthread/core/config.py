@@ -81,6 +81,11 @@ class Settings(BaseSettings):
     openrouter_site_url: str = "http://localhost:3000"
     openrouter_app_name: str = "inkthread"
 
+    # Langfuse tracing (spec 14 § 1): both keys on, either unset or blank off.
+    langfuse_public_key: SecretStr | None = None
+    langfuse_secret_key: SecretStr | None = None
+    langfuse_base_url: str | None = None
+
     llm_mode: LlmMode = LlmMode.LIVE
     sample_llm_mode: LlmMode = LlmMode.REPLAY
     llm_max_requests_per_document: int = Field(default=8, ge=0)

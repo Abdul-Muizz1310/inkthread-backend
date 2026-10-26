@@ -1,20 +1,28 @@
-"""OpenRouter chat completions with a cascade, retries and a budget (spec 05 § 6)."""
+"""OpenRouter chat completions with a cascade, retries and a budget (spec 05 § 6).
+
+Every HTTP attempt is one Langfuse generation named after the task (spec 14 § 2).
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
+import math
 import random
 import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
+from typing import Annotated, Literal
 
 import httpx
 import structlog
-from pydantic import BaseModel, SecretStr, ValidationError
+from langfuse import LangfuseGeneration
+from langfuse.api import MapValue
+from pydantic import BaseModel, BeforeValidator, SecretStr, ValidationError
 
 from inkthread.canon import cjson
+from inkthread.core import tracing
 from inkthread.llm.catalog import ModelCatalog
 from inkthread.llm.ports import (
     Attempt,
@@ -34,11 +42,41 @@ ATTEMPTS_PER_MODEL = 2
 BACKOFF_S = (2.0, 4.0)
 JITTER = 0.25
 DEADLINE_S = 180.0
+REASONING_EFFORT = "low"
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
+
+
+def _count(value: object) -> int | None:
+    """A token count as reported, or None unless it is a non-negative integer."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+def _cost(value: object) -> float | None:
+    """A cost as reported, or None unless it is a finite, non-negative number."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    cost = float(value)
+    return cost if math.isfinite(cost) and cost >= 0 else None
+
+
+def _mapping_or_none(value: object) -> object:
+    return value if isinstance(value, Mapping) else None
+
+
+def _text_or_none(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+Count = Annotated[int | None, BeforeValidator(_count)]
+Cost = Annotated[float | None, BeforeValidator(_cost)]
+Text = Annotated[str | None, BeforeValidator(_text_or_none)]
 
 
 class _ChatMessage(BaseModel):
     content: str | None = None
+    reasoning: Text = None
 
 
 class _Choice(BaseModel):
@@ -46,14 +84,25 @@ class _Choice(BaseModel):
     finish_reason: str | None = None
 
 
+class _Details(BaseModel):
+    cached_tokens: Count = None
+    reasoning_tokens: Count = None
+
+
 class _Usage(BaseModel):
-    prompt_tokens: int | None = None
-    completion_tokens: int | None = None
+    """Telemetry: a field that does not read is dropped, never a failed attempt."""
+
+    prompt_tokens: Count = None
+    completion_tokens: Count = None
+    cost: Cost = None
+    prompt_tokens_details: Annotated[_Details | None, BeforeValidator(_mapping_or_none)] = None
+    completion_tokens_details: Annotated[_Details | None, BeforeValidator(_mapping_or_none)] = None
 
 
 class _ChatResponse(BaseModel):
     choices: list[_Choice]
-    usage: _Usage | None = None
+    usage: Annotated[_Usage | None, BeforeValidator(_mapping_or_none)] = None
+    provider: Text = None
 
 
 def extract_json_object(text: str) -> str | None:
@@ -75,9 +124,24 @@ def extract_json_object(text: str) -> str | None:
 
 @dataclass(frozen=True)
 class _Outcome:
+    """One attempt's facts, and what the model sent back (for the trace) when it answered."""
+
     attempt: Attempt
     retry: bool
     result: ModelResult | None = None
+    reply: _ChatResponse | None = None
+
+
+ResponseFormat = Literal["json_schema", "json_object", "none"]
+
+
+@dataclass(frozen=True)
+class _Prepared:
+    """One model's request body and the trace's view of it."""
+
+    body: dict[str, object]
+    messages: list[dict[str, str]]
+    parameters: dict[str, MapValue]
 
 
 class OpenRouterModel:
@@ -117,14 +181,16 @@ class OpenRouterModel:
         started = self.clock()
         attempts: list[Attempt] = []
         for slug in req.cascade:
-            body = await self._body(req, slug)
+            prepared = await self._body(req, slug)
             for n in range(ATTEMPTS_PER_MODEL):
                 remaining = self._deadline - (self.clock() - started)
                 if remaining <= 0:
                     raise ModelUnavailable(attempts, "the cascade deadline passed")
                 if not await self._budget.acquire():
                     raise BudgetExhausted(attempts, "the request budget is spent")
-                outcome = await self._attempt(slug, body, min(self._timeout, remaining))
+                outcome = await self._traced(
+                    req, slug, prepared, min(self._timeout, remaining), attempt=n + 1
+                )
                 attempts.append(outcome.attempt)
                 if outcome.result is not None:
                     return ModelResult(
@@ -143,16 +209,19 @@ class OpenRouterModel:
                     await self._sleep(base * (1 + JITTER * (2 * self.jitter() - 1)))
         raise ModelUnavailable(attempts, "every model in the cascade failed")
 
-    async def _body(self, req: ModelRequest, slug: str) -> dict[str, object]:
+    async def _body(self, req: ModelRequest, slug: str) -> _Prepared:
         caps = await self._catalog.capabilities(slug)
         messages = [{"role": m.role, "content": m.content} for m in req.messages]
+        max_tokens = req.max_tokens or self._max_tokens
         body: dict[str, object] = {
             "model": slug,
             "temperature": req.temperature,
-            "max_tokens": req.max_tokens or self._max_tokens,
-            "reasoning": {"effort": "low"},
+            "max_tokens": max_tokens,
+            "reasoning": {"effort": REASONING_EFFORT},
         }
+        response_format: ResponseFormat = "none"
         if caps.structured_outputs:
+            response_format = "json_schema"
             body["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {"name": req.task, "strict": True, "schema": dict(req.schema)},
@@ -160,9 +229,31 @@ class OpenRouterModel:
         else:
             messages = _with_schema(messages, req)
             if caps.response_format:
+                response_format = "json_object"
                 body["response_format"] = {"type": "json_object"}
         body["messages"] = messages
-        return body
+        parameters: dict[str, MapValue] = {
+            "temperature": req.temperature,
+            "max_tokens": max_tokens,
+            "response_format": response_format,
+            "reasoning_effort": REASONING_EFFORT,
+        }
+        return _Prepared(body=body, messages=messages, parameters=parameters)
+
+    async def _traced(
+        self, req: ModelRequest, slug: str, prepared: _Prepared, timeout: float, *, attempt: int
+    ) -> _Outcome:
+        """One attempt inside its generation (spec 14 § 2)."""
+        with tracing.generation(
+            req.task,
+            model=slug,
+            messages=prepared.messages,
+            parameters=prepared.parameters,
+            metadata={"task": req.task, "attempt": attempt},
+        ) as observed:
+            outcome = await self._attempt(slug, prepared.body, timeout)
+            _record(observed, outcome)
+        return outcome
 
     async def _attempt(self, slug: str, body: dict[str, object], timeout: float) -> _Outcome:
         headers = {
@@ -204,16 +295,16 @@ class OpenRouterModel:
             completion_tokens=parsed.usage.completion_tokens if parsed.usage else None,
         )
         if not parsed.choices:
-            return _Outcome(attempt("empty", code, usage), retry=True)
+            return _Outcome(attempt("empty", code, usage), retry=True, reply=parsed)
         choice = parsed.choices[0]
         if choice.finish_reason == "length":
-            return _Outcome(attempt("length", code, usage), retry=True)
+            return _Outcome(attempt("length", code, usage), retry=True, reply=parsed)
         content = choice.message.content or ""
         if not content.strip():
-            return _Outcome(attempt("empty", code, usage), retry=True)
+            return _Outcome(attempt("empty", code, usage), retry=True, reply=parsed)
         extracted = extract_json_object(content)
         if extracted is None:
-            return _Outcome(attempt("no_json", code, usage), retry=True)
+            return _Outcome(attempt("no_json", code, usage), retry=True, reply=parsed)
         done = attempt("ok", code, usage)
         return _Outcome(
             done,
@@ -225,7 +316,41 @@ class OpenRouterModel:
                 usage=usage,
                 attempts=(done,),
             ),
+            reply=parsed,
         )
+
+
+def _record(observed: LangfuseGeneration, outcome: _Outcome) -> None:
+    """What an attempt got back, on its generation; a failed attempt is ERROR with its status."""
+    reply = outcome.reply
+    message = reply.choices[0].message if reply and reply.choices else None
+    output: dict[str, str] | None = None
+    if message is not None and (message.content or message.reasoning):
+        output = {"role": "assistant", "content": message.content or ""}
+        if message.reasoning:
+            output["reasoning"] = message.reasoning
+    usage = reply.usage if reply and reply.usage else _Usage()
+    prompt = usage.prompt_tokens_details or _Details()
+    completion = usage.completion_tokens_details or _Details()
+    buckets = tracing.usage_details(
+        prompt=usage.prompt_tokens,
+        completion=usage.completion_tokens,
+        cached=prompt.cached_tokens,
+        reasoning=completion.reasoning_tokens,
+    )
+    attempt = outcome.attempt
+    failed = attempt.status != "ok"
+    status: str = attempt.status
+    if attempt.status == "http_error" and attempt.http_status is not None:
+        status = f"http_error: status={attempt.http_status}"
+    observed.update(
+        output=output,
+        usage_details=buckets or None,
+        cost_details=tracing.cost_details(usage.cost),
+        metadata={"provider": reply.provider} if reply and reply.provider else None,
+        level="ERROR" if failed else None,
+        status_message=status if failed else None,
+    )
 
 
 def _with_schema(messages: list[dict[str, str]], req: ModelRequest) -> list[dict[str, str]]:

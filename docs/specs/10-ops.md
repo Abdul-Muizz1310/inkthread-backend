@@ -45,6 +45,8 @@ once at startup and validated there, so a bad configuration fails the boot, not 
 | `READ_TIMEOUT_S` | `300` | |
 | `READ_MEMORY_LIMIT_MB` | `0` | `0` disables the limit |
 | `COMMIT_SHA` | — | else `RENDER_GIT_COMMIT`, else `GITHUB_SHA`, else `unknown` |
+| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | unset | both set → each job is a Langfuse trace (spec 14); either unset or blank → no tracing |
+| `LANGFUSE_BASE_URL` | the SDK's (EU Cloud) | the project is on US Cloud: `https://us.cloud.langfuse.com` |
 
 The model slugs were checked against OpenRouter's catalogue on 2026-10-14. They are configuration,
 never validated against an allow-list (FeeLedger N-10).
@@ -57,6 +59,7 @@ never validated against an allow-list (FeeLedger N-10).
 - `GET /metrics` serves Prometheus metrics through prometheus-fastapi-instrumentator, behind
   `METRICS_TOKEN`.
 - Logs are structlog: JSON in production, console otherwise, with the request id bound on every line.
+- Traces go to Langfuse (spec 14): one per job, `APP_ENV` as the environment, flushed at shutdown.
   Secrets are never logged.
 
 ## 3. Deployment

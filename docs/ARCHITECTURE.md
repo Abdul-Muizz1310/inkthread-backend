@@ -16,6 +16,7 @@ flowchart TB
   RUN --> P[pipeline: LangGraph]
   P --> CORE
   P --> AG[agents] --> LLM[llm: OpenRouter]
+  RUN & P & AG & LLM -.->|traces| LF[Langfuse]
   P --> RD[reader: child process] --> INK[inkgrid]
   SVC --> REPO[repositories] --> DB[(Postgres)]
   SVC --> BL[(sample files: Postgres)] & UP[(upload files: temp disk, 1 h)]
@@ -29,5 +30,8 @@ flowchart TB
   already sent; `Last-Event-ID` resumes.
 - **Determinism.** Content-derived ids, a canonical-JSON graph hash, recorded model answers; run facts
   (timings, request counts) live on the job, not in the graph.
+- **Tracing.** A job is one Langfuse trace: `build-document-graph`, a stage observation per node, a
+  `recall-answer` retriever and a generation per model attempt. Export runs in the background and the
+  lifespan flushes it; an upload's spans leave without text ([spec 14](specs/14-tracing.md)).
 
 The design and every behaviour, with its test cases, are in [`specs/`](specs/00-design.md).

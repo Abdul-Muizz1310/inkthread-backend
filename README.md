@@ -9,6 +9,7 @@
 ![ci](https://img.shields.io/github/actions/workflow/status/Abdul-Muizz1310/inkthread-backend/ci.yml?style=flat-square)
 ![mypy](https://img.shields.io/badge/mypy-strict-blue?style=flat-square)
 ![langgraph](https://img.shields.io/badge/LangGraph-pipeline-1c3c3c?style=flat-square)
+![langfuse](https://img.shields.io/badge/Langfuse-v4%20%C2%B7%20SDK%20v5-f9a825?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 
 ---
@@ -52,6 +53,7 @@ text: a quote they give counts only when it snaps to the page's own words.
 - 🧾 **Explain gate** — a hash-chained op log must account for every node, role and thread before a graph is stored
 - 🔁 **Byte-identical replay** — recorded model answers by request key; the same PDF gives the same `graph_hash` with zero calls
 - 📡 **Live build** — SSE `stage` / `delta` / `llm` events, resumable with `Last-Event-ID`; the event log replays the build any time later
+- 🔭 **Traced** — one Langfuse trace per job: every stage, recorded-answer lookup and model attempt, with tokens, cost and failures; an upload's trace holds no document text
 - 🔐 **Platform token** — Ed25519 tokens from bastion or the frontend's proxy, `aud`-bound to inkthread, 10 s leeway; fail closed without a key
 - 📤 **Exports** — JSON, JSON-LD (DoCO, SKOS, PROV-O, Web Annotation), GraphML, Cypher
 - 📑 **The reading** — inkgrid's tables (dense rows and Markdown) and its PDFium verification summary, kept per document
@@ -130,6 +132,14 @@ statement a request with `X-Request-Id: R` causes, including the job an upload q
 R), in schema `slowquery` of the service's own Postgres; `GET /_slowquery/queries?request_id=R` lists
 them for a bastion token only ([spec 13](docs/specs/13-query-observability.md)).
 
+Traces: each job is one [Langfuse](https://langfuse.com) trace (Langfuse v4, Python SDK v5),
+`build-document-graph` → a chain, agent or evaluator per stage → a `recall-answer` retriever and a
+generation per model attempt (model, tokens, cost, reasoning, failures at level `ERROR`). Tags
+`inkthread` and `kind:sample|upload`, the job and document ids and the environment are on every
+observation; the session is the request's `X-Request-Id`, so a bastion dossier groups across
+products. An upload's trace keeps names, timings, models, tokens and levels but no text: one export
+hook strips it unless the span is a sample's ([spec 14](docs/specs/14-tracing.md), DR-0029).
+
 Configuration is in [`.env.example`](.env.example) and [spec 10](docs/specs/10-ops.md).
 
 ---
@@ -141,6 +151,7 @@ Configuration is in [`.env.example`](.env.example) and [spec 10](docs/specs/10-o
 | PDF reading | inkgrid 0.2 (PyMuPDF, Camelot, PDFium verifier), in a spawned child process |
 | Pipeline | LangGraph 1.2, no checkpointer (the job row and event log are durable) |
 | LLM | OpenRouter `:free` cascade, strict JSON schema, recorded answers |
+| Tracing | Langfuse v4 through Python SDK v5; uploads metadata-only |
 | API | FastAPI 0.143, sse-starlette, Pydantic v2 |
 | Data | SQLAlchemy 2.1 async + asyncpg, Alembic, Neon Postgres |
 | Files | samples in Postgres (or disk, or R2); uploads on the instance's temporary disk for an hour |
@@ -152,7 +163,7 @@ Configuration is in [`.env.example`](.env.example) and [spec 10](docs/specs/10-o
 
 | Metric | Value |
 |---|---|
-| Tests | 500+ (unit, property and integration) |
+| Tests | 630+ (unit, property and integration) |
 | Integration | real Postgres (Testcontainers), the real reader child process, the composed upload → graph flow |
 | Property tests | Hypothesis: spans, ids, section-tree invariants, partition, grounding |
 
@@ -167,7 +178,7 @@ uv run pytest -m integration         # needs Docker
 
 | Principle | Here |
 |---|---|
-| Spec-TDD | eleven specs, every test traces to a spec case id |
+| Spec-TDD | fifteen specs, every test traces to a spec case id |
 | Negative space | the graph model rejects an invalid graph at construction |
 | Pure core | `domain/` does no I/O; the shells are reader, llm, agents, pipeline, services |
 | Honest numbers | no precision figure is claimed until a hand-labelled edge set exists |
@@ -181,7 +192,8 @@ uv run pytest -m integration         # needs Docker
   is rules-only, with the skipped stages named.
 - Rules can over-link capitalised common words defined as terms.
 - Uploads are processed, not kept: the PDF is deleted when its job ends, and the graph and page images
-  an hour later (or at the next restart). Text does go to OpenRouter's free providers, which may log it.
+  an hour later (or at the next restart). Text does go to OpenRouter's free providers, which may log it;
+  it never goes to Langfuse, where an upload's trace holds no document text.
 
 ---
 

@@ -19,6 +19,7 @@ from slowquery_detective import install as install_query_observability
 from inkthread import __version__
 from inkthread.api.deps import ApiConfig
 from inkthread.api.routers import admin, documents, jobs, samples
+from inkthread.core import tracing
 from inkthread.core.config import Settings, get_settings
 from inkthread.core.db import make_engine, make_sessions
 from inkthread.core.errors import install_error_handlers
@@ -101,6 +102,7 @@ def create_app(
     """
     cfg = settings or get_settings()
     configure_logging(level=cfg.log_level, json_logs=cfg.is_production)
+    tracing.configure(cfg)
     # Built here, not in the lifespan: slowquery-detective's install needs it at construction
     # (spec 13 § 1). Creating it opens no connection; the lifespan disposes of it.
     engine = make_engine(cfg.database_url)
@@ -180,6 +182,8 @@ def create_app(
             await services.retention.stop()
             await http.aclose()
             await engine.dispose()
+            # Send the traces still buffered (spec 14 § 1); also ends `inkthread seed`.
+            tracing.shutdown()
 
     app = FastAPI(
         title="inkthread",

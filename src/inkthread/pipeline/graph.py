@@ -2,7 +2,7 @@
 
 Nodes are thin shells over the pure domain and the agent layer. They report progress through
 LangGraph's custom stream (`stage`, `delta` and `llm` events) and never touch the database: the job
-runner persists what they stream.
+runner persists what they stream. Each runs inside its Langfuse observation (spec 14 § 2).
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import operator
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, Protocol, TypedDict
 
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
@@ -23,6 +23,7 @@ from inkthread.agents.deps import AgentDeps, AgentReport
 from inkthread.agents.prompts import prompts_hash
 from inkthread.agents.relate import relate_agent
 from inkthread.agents.verify import verify_agent
+from inkthread.core import tracing
 from inkthread.domain.classify.residual import residual
 from inkthread.domain.classify.rules import classify
 from inkthread.domain.digest import ReadingDigest
@@ -48,6 +49,8 @@ class StageRun:
     status: StageStatus
     ms: int
     reason: str | None = None
+    # For the trace only: the job row keeps name, status, ms and reason (spec 08).
+    counts: tuple[tuple[str, int], ...] = field(default=(), compare=False)
 
 
 @dataclass
@@ -108,7 +111,9 @@ def _stage(
             "counts": dict(counts) if counts else None,
         },
     )
-    return StageRun(name=name, status=status, ms=ms, reason=reason)
+    return StageRun(
+        name=name, status=status, ms=ms, reason=reason, counts=tuple((counts or {}).items())
+    )
 
 
 def _delta(draft: GraphDraft, stage: str) -> None:
@@ -149,6 +154,51 @@ class PipelineDeps:
 
 def _ms(start: float) -> int:
     return int((time.perf_counter() - start) * 1000)
+
+
+class Node(Protocol):
+    """A pipeline node, as LangGraph calls it."""
+
+    def __call__(self, state: State) -> Awaitable[dict[str, Any]]: ...
+
+
+#: Each stage's Langfuse observation (spec 14 § 2): its name and type.
+OBSERVED: dict[str, tuple[str, tracing.StepType]] = {
+    "read": ("read-pdf", "chain"),
+    "structure": ("build-structure", "chain"),
+    "classify_rules": ("classify-by-rules", "chain"),
+    "classify_agent": ("classify-parts", "agent"),
+    "link_rules": ("link-by-rules", "chain"),
+    "relate_agent": ("relate-parts", "agent"),
+    "verify_agent": ("verify-claims", "evaluator"),
+    "finalize": ("finalize-graph", "chain"),
+}
+#: Batch-level reasons an operator should see; `no_input`, `disabled`, `replay_miss` are expected.
+_WARNING_REASONS = frozenset({"budget", "model_unavailable", "invalid_answer"})
+
+
+def _observed(name: str, node: Node) -> Node:
+    """`node` inside its stage's observation, which records how the stage ended."""
+    title, kind = OBSERVED[name]
+
+    async def run(state: State) -> dict[str, Any]:
+        with tracing.step(title, as_type=kind, metadata={"stage": name}) as observation:
+            update = await node(state)
+            for stage in update.get("stages", []):
+                level: Literal["WARNING", "ERROR"] | None = None
+                if stage.status == "failed":
+                    level = "ERROR"
+                elif stage.reason in _WARNING_REASONS:
+                    level = "WARNING"
+                facts: dict[str, object] = {"status": stage.status, **dict(stage.counts)}
+                if stage.reason is not None:
+                    facts["reason"] = stage.reason
+                observation.update(
+                    metadata=facts, level=level, status_message=stage.reason if level else None
+                )
+            return update
+
+    return run
 
 
 def build_pipeline(deps: PipelineDeps) -> Any:  # noqa: ANN401, PLR0915 - LangGraph's graph type; one closure per stage
@@ -292,7 +342,7 @@ def build_pipeline(deps: PipelineDeps) -> Any:  # noqa: ANN401, PLR0915 - LangGr
         ("verify_agent", verify),
         ("finalize", finish),
     ):
-        builder.add_node(name, fn)
+        builder.add_node(name, _observed(name, fn))
     builder.add_edge(START, "read")
     builder.add_conditional_edges("read", after_read, ["structure", END])
     chain = [

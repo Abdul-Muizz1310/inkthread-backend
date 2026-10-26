@@ -2,6 +2,7 @@
 
 One runner task per process. It sleeps on an event that ingest sets and polls every `poll_s`, so a
 job enqueued by another instance (or left by a crash and requeued by the reaper) is still picked up.
+Each job is one Langfuse trace, `build-document-graph` (spec 14).
 """
 
 from __future__ import annotations
@@ -13,12 +14,13 @@ import json
 import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import structlog
 from slowquery_detective import request_scope
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from inkthread.core import tracing
 from inkthread.core.config import LlmMode
 from inkthread.domain.digest import link_tables
 from inkthread.domain.finalize import ExplainFailed
@@ -87,6 +89,33 @@ def _attribution(c: _Claimed) -> contextlib.AbstractContextManager[object]:
     except (ValueError, TypeError) as exc:
         _log.warning("job_request_id_refused", job_id=str(c.job_id), error=type(exc).__name__)
         return contextlib.nullcontext()
+
+
+@dataclass(frozen=True, slots=True)
+class _Ended:
+    """How a job ended, for its trace's root (spec 14 § 2)."""
+
+    status: Literal["succeeded", "failed"]
+    code: str | None = None
+    graph_hash: str | None = None
+    nodes: int | None = None
+    edges: int | None = None
+
+    def output(self) -> dict[str, object]:
+        if self.status == "failed":
+            return {"status": self.status, "error_code": self.code}
+        return {
+            "status": self.status,
+            "graph_hash": self.graph_hash,
+            "nodes": self.nodes,
+            "edges": self.edges,
+        }
+
+    def facts(self) -> dict[str, object]:
+        """The outcome without document text: what an upload's root keeps (spec 14 § 3)."""
+        if self.status == "failed":
+            return {"status": self.status}
+        return {"status": self.status, "nodes": self.nodes, "edges": self.edges}
 
 
 def _llm_facts(counter: CountingCallLog, rejected: int = 0) -> dict[str, int]:
@@ -204,6 +233,21 @@ class JobRunner:
             return _Claimed(job.id, doc.id, doc.sha256, doc.file_name, doc.kind, job.request_id)
 
     async def _run(self, c: _Claimed, store: BlobStore) -> None:
+        # Anything not a sample is traced as an upload: its text never leaves (spec 14 § 3).
+        kind: tracing.DocumentKind = "sample" if c.kind == "sample" else "upload"
+        with tracing.job_trace(
+            job_id=c.job_id, document_id=c.document_id, kind=kind, file_name=c.file_name
+        ) as trace:
+            ended = await self._process(c, store)
+            failed = ended.status == "failed"
+            trace.update(
+                output=ended.output(),
+                metadata=ended.facts(),
+                level="ERROR" if failed else None,
+                status_message=ended.code if failed else None,
+            )
+
+    async def _process(self, c: _Claimed, store: BlobStore) -> _Ended:
         base = self._agents(c.job_id)
         if c.kind == "sample":  # samples replay their recorded answers (spec 11 § 3)
             base = dataclasses.replace(base, mode=stricter(base.mode, self._sample_mode))
@@ -217,8 +261,7 @@ class JobRunner:
         pdf = await store.get(pdf_key(c.sha256))
         if pdf is None:
             message = "the upload was not kept across a restart; upload it again"
-            await self._fail(c, "pdf_missing", message, seen)
-            return
+            return await self._fail(c, "pdf_missing", message, seen)
         outcome: PipelineResult | PipelineFailure | None = None
         stream = run_pipeline(pdf, c.file_name, deps)
         try:
@@ -229,31 +272,29 @@ class JobRunner:
                     else:
                         await self._event(c.job_id, item, seen)
         except TimeoutError:
-            await self._fail(
+            return await self._fail(
                 c, "job_timeout", f"the job ran past {self._timeout:g} s", seen, counter
             )
-            return
         except ExplainFailed as exc:
             _log.error("explain_failed", job_id=str(c.job_id), detail=str(exc))
-            await self._fail(
+            return await self._fail(
                 c, "explain_failed", "the graph failed its explain checks", seen, counter
             )
-            return
         except Exception as exc:  # noqa: BLE001 - any pipeline bug fails the job, not the runner
             _log.exception("pipeline_error", job_id=str(c.job_id), error=type(exc).__name__)
-            await self._fail(
+            return await self._fail(
                 c, "internal_error", "the pipeline stopped unexpectedly", seen, counter
             )
-            return
         finally:
             if isinstance(stream, AsyncGenerator):
                 await stream.aclose()
         if isinstance(outcome, PipelineResult):
-            await self._succeed(c, outcome, counter, store)
-        elif isinstance(outcome, PipelineFailure):
-            await self._fail(c, outcome.code, outcome.message, outcome.stages, counter)
-        else:  # pragma: no cover - run_pipeline always ends with one outcome
-            await self._fail(c, "internal_error", "the pipeline ended without a result", seen)
+            return await self._succeed(c, outcome, counter, store)
+        if isinstance(outcome, PipelineFailure):
+            return await self._fail(c, outcome.code, outcome.message, outcome.stages, counter)
+        return await self._fail(  # pragma: no cover - run_pipeline always ends with one outcome
+            c, "internal_error", "the pipeline ended without a result", seen
+        )
 
     async def _event(self, job_id: uuid.UUID, item: dict[str, Any], seen: list[StageRun]) -> None:
         name = str(item["event"])
@@ -275,7 +316,7 @@ class JobRunner:
 
     async def _succeed(
         self, c: _Claimed, result: PipelineResult, counter: CountingCallLog, store: BlobStore
-    ) -> None:
+    ) -> _Ended:
         graph = result.final.graph
         sha = c.sha256
         # Geometry first and page 1's image last: page 1 marks a ready document's files present.
@@ -317,6 +358,12 @@ class JobRunner:
             )
             seq = await events.append(s, c.job_id, "done", done)
         self._broadcast.publish(c.job_id, StreamEvent(seq, "done", done))
+        return _Ended(
+            "succeeded",
+            graph_hash=graph.provenance.graph_hash,
+            nodes=len(graph.nodes),
+            edges=len(graph.edges),
+        )
 
     async def _fail(
         self,
@@ -325,7 +372,7 @@ class JobRunner:
         message: str,
         stages: list[StageRun],
         counter: CountingCallLog | None = None,
-    ) -> None:
+    ) -> _Ended:
         _log.info("job_failed", job_id=str(c.job_id), code=code)
         failed: EventData = {"code": code, "message": message}
         async with self._sessions() as s, s.begin():
@@ -341,3 +388,4 @@ class JobRunner:
             )
             seq = await events.append(s, c.job_id, "failed", failed)
         self._broadcast.publish(c.job_id, StreamEvent(seq, "failed", failed))
+        return _Ended("failed", code=code)

@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError
 from inkthread.agents.deps import AgentDeps, SkipReason
 from inkthread.agents.prompts import DATA_LINE, Prompt
 from inkthread.canon import cjson
+from inkthread.core import tracing
 from inkthread.core.config import LlmMode
 from inkthread.llm.keys import request_key
 from inkthread.llm.ports import (
@@ -66,29 +67,25 @@ async def run_task[A: BaseModel](
     if deps.mode is LlmMode.OFF:
         return TaskOutcome(status="abstained", request_key=key, reason="disabled")
 
-    record = await deps.store.get(key)
-    if record is not None:
-        try:
-            answer = answer_model.model_validate(record.response)
-        except ValidationError:
-            record = None
-        else:
-            await deps.log.record(
-                LlmCall(
-                    task=prompt.task,
-                    model=record.served_model,
-                    request_key=key,
-                    cached=True,
-                    status="hit",
-                    http_status=None,
-                    latency_ms=0,
-                    prompt_tokens=None,
-                    completion_tokens=None,
-                )
+    recalled = await _recall(prompt.task, key, answer_model, deps)
+    if recalled is not None:
+        record, answer = recalled
+        await deps.log.record(
+            LlmCall(
+                task=prompt.task,
+                model=record.served_model,
+                request_key=key,
+                cached=True,
+                status="hit",
+                http_status=None,
+                latency_ms=0,
+                prompt_tokens=None,
+                completion_tokens=None,
             )
-            return TaskOutcome(
-                status="cached", request_key=key, answer=answer, served_model=record.served_model
-            )
+        )
+        return TaskOutcome(
+            status="cached", request_key=key, answer=answer, served_model=record.served_model
+        )
     if deps.mode is LlmMode.REPLAY:
         return TaskOutcome(status="abstained", request_key=key, reason="replay_miss")
 
@@ -140,6 +137,27 @@ async def run_task[A: BaseModel](
         served_model=result.served_model,
         attempts=result.attempts,
     )
+
+
+async def _recall[A: BaseModel](
+    task: str, key: str, answer_model: type[A], deps: AgentDeps
+) -> tuple[AnswerRecord, A] | None:
+    """The recorded answer for `key`, when one still validates: the `recall-answer` lookup."""
+    with tracing.step("recall-answer", as_type="retriever", metadata={"task": task}) as lookup:
+        record = await deps.store.get(key)
+        answer: A | None = None
+        if record is not None:
+            try:
+                answer = answer_model.model_validate(record.response)
+            except ValidationError:
+                answer = None
+        if record is None or answer is None:
+            lookup.update(metadata={"hit": False})
+            return None
+        lookup.update(
+            output=record.response, metadata={"hit": True, "served_model": record.served_model}
+        )
+        return record, answer
 
 
 async def _log_attempts(deps: AgentDeps, task: str, key: str, attempts: Sequence[Attempt]) -> None:
