@@ -111,6 +111,12 @@ class _Ended:
             "edges": self.edges,
         }
 
+    def facts(self) -> dict[str, object]:
+        """The outcome without document text: what an upload's root keeps (spec 14 § 3)."""
+        if self.status == "failed":
+            return {"status": self.status}
+        return {"status": self.status, "nodes": self.nodes, "edges": self.edges}
+
 
 def _llm_facts(counter: CountingCallLog, rejected: int = 0) -> dict[str, int]:
     return {
@@ -236,6 +242,7 @@ class JobRunner:
             failed = ended.status == "failed"
             trace.update(
                 output=ended.output(),
+                metadata=ended.facts(),
                 level="ERROR" if failed else None,
                 status_message=ended.code if failed else None,
             )
