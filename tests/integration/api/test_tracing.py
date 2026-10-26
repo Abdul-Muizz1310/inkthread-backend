@@ -216,7 +216,7 @@ async def test_T_TR_13_a_refused_pdf_is_an_error_trace(
     async with api(run_jobs=True, settings=live, model=openrouter, reader=_refuse) as a:
         job = await _upload(a, {})
         assert job["status"] == "failed"
-        assert job["error_code"] == "pdf_unreadable"
+        assert job["error"]["code"] == "pdf_unreadable"
         spans = traces.spans()
     read, root = traces.one("read-pdf"), traces.one("build-document-graph")
     assert (traces.level(read), traces.status_message(read)) == ("ERROR", "pdf_unreadable")
@@ -241,7 +241,7 @@ async def test_T_TR_14_an_exporter_failure_never_changes_the_job(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     client = tracing_client(_BrokenExporter())
-    monkeypatch.setattr(tracing, "_client", client)
+    monkeypatch.setattr(tracing._state, "client", client)
     async with api(run_jobs=True, settings=live, model=openrouter) as a:
         job = await _upload(a, {})
         client.flush()

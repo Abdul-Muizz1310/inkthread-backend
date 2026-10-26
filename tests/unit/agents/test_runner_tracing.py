@@ -1,9 +1,13 @@
-"""Spec 14 § 2 `recall-answer`: the lookup of a recorded answer is a retriever (T-TR-8)."""
+"""Spec 14 § 2 `recall-answer`: the lookup of a recorded answer is a retriever (T-TR-8).
+
+The lookups run as a sample's, so their output and metadata reach the exporter (spec 14 § 3).
+"""
 
 from __future__ import annotations
 
 from agent_drafts import deps
 from fake_llm import MemoryStore, Reply, ScriptedModel
+from langfuse import propagate_attributes
 from pydantic import BaseModel, ConfigDict
 from tracing_support import OUTPUT, Traces
 
@@ -22,14 +26,15 @@ class Answer(BaseModel):
 async def run(
     model: ScriptedModel, store: MemoryStore, mode: LlmMode = LlmMode.LIVE
 ) -> TaskOutcome[Answer]:
-    return await run_task(
-        prompt=load_prompt("classify"),
-        answer_model=Answer,
-        schema=SCHEMA,
-        payload={"parts": [1]},
-        cascade=("p/primary:free",),
-        deps=deps(model, mode=mode, store=store),
-    )
+    with propagate_attributes(tags=["inkthread", "kind:sample"]):
+        return await run_task(
+            prompt=load_prompt("classify"),
+            answer_model=Answer,
+            schema=SCHEMA,
+            payload={"parts": [1]},
+            cascade=("p/primary:free",),
+            deps=deps(model, mode=mode, store=store),
+        )
 
 
 async def test_a_live_miss_is_a_miss_then_the_model(traces: Traces) -> None:

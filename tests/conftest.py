@@ -25,6 +25,6 @@ from inkthread.core import tracing
 def traces(monkeypatch: pytest.MonkeyPatch) -> Iterator[Traces]:
     exporter = InMemorySpanExporter()
     client = tracing_client(exporter)
-    monkeypatch.setattr(tracing, "_client", client)
+    monkeypatch.setattr(tracing._state, "client", client)
     yield Traces(client=client, exporter=exporter)
     client.shutdown()

@@ -76,7 +76,7 @@ def test_a_missing_or_blank_key_disables_tracing(
 
 def test_a_disabled_client_traces_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
     client = tracing.build_client(settings())
-    monkeypatch.setattr(tracing, "_client", client)
+    monkeypatch.setattr(tracing._state, "client", client)
     with tracing.step("read-pdf", as_type="chain", metadata={"stage": "read"}) as step:
         step.update(metadata={"status": "completed"})
         assert client.get_current_trace_id() is None
@@ -92,7 +92,7 @@ def test_configure_with_both_keys_installs_the_built_client(
         return "built"
 
     cfg = settings(langfuse_public_key="pk-lf-1", langfuse_secret_key="sk-lf-1")
-    monkeypatch.setattr(tracing, "_client", None)
+    monkeypatch.setattr(tracing._state, "client", None)
     monkeypatch.setattr(tracing, "build_client", build)
     tracing.configure(cfg)
     assert tracing.client() == "built"
@@ -101,13 +101,13 @@ def test_configure_with_both_keys_installs_the_built_client(
 
 def test_configure_without_keys_leaves_the_client_alone(monkeypatch: pytest.MonkeyPatch) -> None:
     current = object()
-    monkeypatch.setattr(tracing, "_client", current)
+    monkeypatch.setattr(tracing._state, "client", current)
     tracing.configure(settings())
     assert tracing.client() is current
 
 
 def test_an_unconfigured_process_gets_one_no_op_client(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(tracing, "_client", None)
+    monkeypatch.setattr(tracing._state, "client", None)
     first = tracing.client()
     with first.start_as_current_observation(name="read-pdf"):
         assert first.get_current_trace_id() is None
@@ -115,7 +115,7 @@ def test_an_unconfigured_process_gets_one_no_op_client(monkeypatch: pytest.Monke
 
 
 def test_shutdown_before_first_use_is_a_no_op(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(tracing, "_client", None)
+    monkeypatch.setattr(tracing._state, "client", None)
     tracing.shutdown()
 
 

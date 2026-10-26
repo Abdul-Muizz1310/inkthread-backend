@@ -1,15 +1,21 @@
-"""Spec 14 § 2 generations: one per HTTP attempt, over a mocked OpenRouter (T-TR-5..7)."""
+"""Spec 14 § 2 generations: one per HTTP attempt, over a mocked OpenRouter (T-TR-5..7).
+
+Attempts run as a sample's (`as_sample`) where a test reads their input, output or metadata: any
+other span loses those at export (spec 14 § 3).
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from contextlib import AbstractContextManager
 
 import httpx
 import pytest
 import respx
 from fake_llm import CountingBudget
+from langfuse import propagate_attributes
 from tracing_support import INPUT, OUTPUT, Traces
 
 from inkthread.llm.catalog import ModelCatalog
@@ -64,6 +70,10 @@ async def no_sleep(_seconds: float) -> None:
     return None
 
 
+def as_sample() -> AbstractContextManager[object]:
+    return propagate_attributes(tags=["inkthread", "kind:sample"])
+
+
 @pytest.fixture
 async def http() -> AsyncIterator[httpx.AsyncClient]:
     async with httpx.AsyncClient() as client:
@@ -103,7 +113,8 @@ async def test_each_attempt_is_a_generation(traces: Traces, http: httpx.AsyncCli
     respx.post(f"{BASE}/chat/completions").mock(
         side_effect=[httpx.Response(429), reply(ANSWER, usage=usage, provider="Nvidia")]
     )
-    result = await model(http).complete(request())
+    with as_sample():
+        result = await model(http).complete(request())
     assert result.served_model == PRIMARY
     first, second = traces.named("classify")
     assert traces.type_of(first) == "generation"
@@ -176,7 +187,8 @@ async def test_a_reply_without_json_keeps_its_text(traces: Traces, http: httpx.A
     respx.post(f"{BASE}/chat/completions").mock(
         side_effect=[reply("I cannot help with that."), reply(ANSWER)]
     )
-    await model(http).complete(request())
+    with as_sample():
+        await model(http).complete(request())
     failed = traces.named("classify")[0]
     assert traces.status_message(failed) == "no_json"
     assert traces.decoded(failed, OUTPUT) == {
@@ -230,7 +242,8 @@ async def test_reasoning_is_kept_on_the_output(traces: Traces, http: httpx.Async
         ]
     }
     respx.post(f"{BASE}/chat/completions").mock(return_value=httpx.Response(200, json=body))
-    await model(http).complete(request())
+    with as_sample():
+        await model(http).complete(request())
     assert traces.decoded(traces.one("classify"), OUTPUT) == {
         "role": "assistant",
         "content": ANSWER,
