@@ -16,6 +16,11 @@ quotes; a quote counts only when it snaps to the page's own words, and a second 
 A hash-chained op log must explain every node and thread before a graph is stored, and recorded answers
 make every graph replay byte for byte.
 
+Each job is a Langfuse trace shaped like the run, down to every model attempt and what it cost. A trace
+is kept for weeks and an upload is not (DR-0029), so an upload's trace carries the shape, the models,
+the tokens and the failures, but none of the document's words: one export hook strips them from every
+span that is not a sample's, fail-closed.
+
 ## What I'd change
 
 The rules over-link: a defined term that is also a common capitalised word picks up false uses. I would

@@ -25,6 +25,12 @@ services:
         sync: false
       - key: LLM_MODE
         value: live
+      - key: LANGFUSE_PUBLIC_KEY   # tracing (spec 14); APP_ENV is the trace environment
+        sync: false
+      - key: LANGFUSE_SECRET_KEY
+        sync: false
+      - key: LANGFUSE_BASE_URL
+        value: https://us.cloud.langfuse.com
       - key: ADMIN_TOKEN
         sync: false
       - key: BASTION_SIGNING_KEY_PUBLIC   # platform contract v2 (spec 12)
