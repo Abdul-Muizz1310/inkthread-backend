@@ -152,6 +152,10 @@ async def test_T_TR_9_a_job_is_one_trace_shaped_like_the_run(
         assert traces.metadata(kids[1])["provider"] == "Stub"
     assert traces.metadata(by_name["read-pdf"])["status"] == "completed"
     assert traces.level(root) == "DEFAULT"
+    outcome = traces.metadata(root)
+    assert outcome["status"] == "succeeded"
+    assert outcome["nodes"] > 0
+    assert outcome["edges"] > 0
 
     assert _trace_wide(traces, spans, "langfuse.trace.name") == {"build-document-graph"}
     assert _trace_wide(traces, spans, "langfuse.trace.tags") == {("inkthread", "kind:upload")}

@@ -96,7 +96,9 @@ Set with `propagate_attributes` on entering `build-document-graph`, so every obs
   group into one session. A job with no valid stored id has no session.
 
 The root's `input` is `{kind, file_name}`; its `output` is `{status, graph_hash, nodes, edges}` on
-success. A failed job's root is `ERROR` with the job's error code as `status_message`.
+success. Its metadata repeats `status`, `nodes` and `edges`, which are not document text, so an
+upload's trace (no output, § 3) still says how the job ended. A failed job's root is `ERROR` with the
+job's error code as `status_message`.
 
 ## 3. Uploads are metadata-only (DR-0029)
 
@@ -160,7 +162,8 @@ respx):
 - T-TR-9 An upload sent with `X-Request-Id: dossier-9` → one trace: root `build-document-graph`
   (`chain`) with the eight stages in order and their types; `recall-answer` and the generations under
   the agent stages; on every observation trace name `build-document-graph`, tags `inkthread` and
-  `kind:upload`, `job_id` and `document_id` metadata, environment `test` and session `dossier-9`.
+  `kind:upload`, `job_id` and `document_id` metadata, environment `test` and session `dossier-9`;
+  the root's metadata says `status: succeeded` with its node and edge counts.
 - T-TR-10 That upload's exported spans have no `input` or `output`, and no attribute, span event
   or status description holds the document's title, a word of its text or its file name.
 - T-TR-11 A sample (sample mode `live`) is tagged `kind:sample` and keeps its input and output: the
